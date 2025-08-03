@@ -24,9 +24,9 @@ import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
-import net.betrayd.webspeak.WebSpeakChannel;
-import net.betrayd.webspeak.WebSpeakGroup;
-import net.betrayd.webspeak.util.AudioModifier;
+import net.betrayd.webspeak.v1.WebSpeakChannel;
+import net.betrayd.webspeak.v1.WebSpeakGroup;
+import net.betrayd.webspeak.v1.util.AudioModifier;
 import net.betrayd.webspeaktest.ui.MainUIController;
 
 public class WebSpeakTestApp extends Application {

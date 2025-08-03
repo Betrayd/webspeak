@@ -8,9 +8,9 @@ import java.util.concurrent.Executor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.betrayd.webspeak.WebSpeakFlags;
-import net.betrayd.webspeak.WebSpeakServer;
-import net.betrayd.webspeak.util.PannerOptions;
+import net.betrayd.webspeak.v1.WebSpeakFlags;
+import net.betrayd.webspeak.v1.WebSpeakServer;
+import net.betrayd.webspeak.v1.util.PannerOptions;
 
 public class WebSpeakTestServer implements Executor {
     public static final Logger LOGGER = LoggerFactory.getLogger("WebSpeak Server");

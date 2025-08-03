@@ -23,9 +23,9 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.paint.Color;
 import javafx.util.StringConverter;
-import net.betrayd.webspeak.WebSpeakChannel;
-import net.betrayd.webspeak.util.WebSpeakEvents;
-import net.betrayd.webspeak.util.WebSpeakEvents.WebSpeakEvent;
+import net.betrayd.webspeak.v1.WebSpeakChannel;
+import net.betrayd.webspeak.v1.util.WebSpeakEvents;
+import net.betrayd.webspeak.v1.util.WebSpeakEvents.WebSpeakEvent;
 import net.betrayd.webspeaktest.Player;
 import net.betrayd.webspeaktest.WebSpeakTestApp;
 

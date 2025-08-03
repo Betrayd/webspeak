@@ -4,7 +4,7 @@ import javafx.fxml.FXML;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Slider;
 import javafx.util.StringConverter;
-import net.betrayd.webspeak.util.PannerOptions.DistanceModelType;
+import net.betrayd.webspeak.v1.util.PannerOptions.DistanceModelType;
 import net.betrayd.webspeaktest.PannerOptionsManager;
 import net.betrayd.webspeaktest.WebSpeakTestApp;
 

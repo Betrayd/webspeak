@@ -8,6 +8,7 @@
 plugins {
     // Apply the java-library plugin for API and implementation separation.
     id 'java-library'
+    id 'io.freefair.lombok' version '8.14'
 }
 
 repositories {

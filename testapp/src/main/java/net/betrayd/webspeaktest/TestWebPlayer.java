@@ -1,12 +1,13 @@
 package net.betrayd.webspeaktest;
 
+import net.betrayd.webspeak.v1.WebSpeakGroup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javafx.geometry.Point2D;
-import net.betrayd.webspeak.WebSpeakPlayer;
-import net.betrayd.webspeak.WebSpeakServer;
-import net.betrayd.webspeak.util.WebSpeakVector;
+import net.betrayd.webspeak.v1.WebSpeakPlayer;
+import net.betrayd.webspeak.v1.WebSpeakServer;
+import net.betrayd.webspeak.v1.util.WebSpeakVector;
 import net.betrayd.webspeaktest.util.MathUtils;
 import net.betrayd.webspeaktest.util.URIComponent;
 
@@ -51,7 +52,7 @@ public class TestWebPlayer extends WebSpeakPlayer {
         LOGGER.info("I left scope with {}", other);
     };
 
-    protected void onAddGroup(net.betrayd.webspeak.WebSpeakGroup group) {
+    protected void onAddGroup(WebSpeakGroup group) {
         super.onAddGroup(group);
         LOGGER.info("I joined group " + group);
     };

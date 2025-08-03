@@ -5,8 +5,8 @@ import javafx.beans.property.SimpleBooleanProperty;
 import javafx.fxml.FXML;
 import javafx.scene.control.ListView;
 import javafx.scene.control.cell.CheckBoxListCell;
-import net.betrayd.webspeak.WebSpeakGroup;
-import net.betrayd.webspeak.WebSpeakPlayer;
+import net.betrayd.webspeak.v1.WebSpeakGroup;
+import net.betrayd.webspeak.v1.WebSpeakPlayer;
 import net.betrayd.webspeaktest.Player;
 import net.betrayd.webspeaktest.WebSpeakTestApp;
 

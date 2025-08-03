@@ -9,7 +9,7 @@ import java.util.stream.StreamSupport;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
-import net.betrayd.webspeak.util.WebSpeakMath;
+import net.betrayd.webspeak.v1.util.WebSpeakMath;
 
 public class MathTest {
     

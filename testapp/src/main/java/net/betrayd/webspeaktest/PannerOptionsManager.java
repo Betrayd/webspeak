@@ -9,10 +9,10 @@ import javafx.beans.property.ReadOnlyDoubleProperty;
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleFloatProperty;
 import javafx.beans.property.SimpleObjectProperty;
-import net.betrayd.webspeak.WebSpeakServer;
-import net.betrayd.webspeak.util.PannerOptions;
-import net.betrayd.webspeak.util.WebSpeakMath;
-import net.betrayd.webspeak.util.PannerOptions.DistanceModelType;
+import net.betrayd.webspeak.v1.WebSpeakServer;
+import net.betrayd.webspeak.v1.util.PannerOptions;
+import net.betrayd.webspeak.v1.util.WebSpeakMath;
+import net.betrayd.webspeak.v1.util.PannerOptions.DistanceModelType;
 
 public class PannerOptionsManager {
     private final WebSpeakTestApp app;

@@ -11,9 +11,9 @@ import javafx.beans.property.StringProperty;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Node;
 import javafx.scene.paint.Color;
-import net.betrayd.webspeak.WebSpeakChannel;
-import net.betrayd.webspeak.WebSpeakPlayer;
-import net.betrayd.webspeak.util.WebSpeakVector;
+import net.betrayd.webspeak.v1.WebSpeakChannel;
+import net.betrayd.webspeak.v1.WebSpeakPlayer;
+import net.betrayd.webspeak.v1.util.WebSpeakVector;
 import net.betrayd.webspeaktest.ui.PlayerAvatarController;
 
 public class Player {
