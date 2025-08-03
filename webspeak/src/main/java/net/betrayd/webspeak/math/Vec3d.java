@@ -1,8 +1,16 @@
 package net.betrayd.webspeak.math;
 
+import com.google.gson.TypeAdapter;
+import com.google.gson.annotations.JsonAdapter;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
+
+import java.io.IOException;
+
 /**
  * A simple, immutable three-dimensional vector.
  */
+@JsonAdapter(VecJsonAdapter.class)
 public record Vec3d(double x, double y, double z) {
     public static final Vec3d ZERO = new Vec3d(0, 0, 0);
 
@@ -107,5 +115,27 @@ public record Vec3d(double x, double y, double z) {
             throw new ArithmeticException("Cannot normalize a zero-length vector");
         }
         return new Vec3d(x / length, y / length, z / length);
+    }
+}
+
+class VecJsonAdapter extends TypeAdapter<Vec3d> {
+
+    @Override
+    public void write(JsonWriter out, Vec3d value) throws IOException {
+        out.beginArray();
+        out.value(value.x());
+        out.value(value.y());
+        out.value(value.z());
+        out.endArray();
+    }
+
+    @Override
+    public Vec3d read(JsonReader in) throws IOException {
+        in.beginArray();
+        double x = in.nextDouble();
+        double y = in.nextDouble();
+        double z = in.nextDouble();
+        in.endArray();
+        return new Vec3d(x, y, z);
     }
 }
