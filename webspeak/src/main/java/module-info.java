@@ -5,6 +5,7 @@ module net.betrayd.webspeak {
     requires org.eclipse.jetty.websocket.client;
     requires static lombok;
     requires org.jetbrains.annotations;
+    requires webrtc.java;
 
     exports net.betrayd.webspeak.v1.util;
     exports net.betrayd.webspeak.v1;

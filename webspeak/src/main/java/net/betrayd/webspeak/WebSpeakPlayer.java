@@ -1,11 +1,8 @@
 package net.betrayd.webspeak;
 
 import lombok.Getter;
-import net.betrayd.webspeak.event.WebSpeakEvent;
 import net.betrayd.webspeak.math.Vec3d;
 import org.jetbrains.annotations.Nullable;
-
-import java.util.function.Consumer;
 
 /**
  * A player that contains a connection, can obtain coordinates, etc.
@@ -16,7 +13,7 @@ public abstract class WebSpeakPlayer {
      * The server the player belongs to.
      */
     @Getter
-    private final WebSpeakServer server;
+    private final WebSpeakServer<?> server;
 
     /**
      * The public-facing player ID that identifies it across all clients.
@@ -35,14 +32,40 @@ public abstract class WebSpeakPlayer {
     private PlayerConnection playerConnection;
 
     public void setPlayerConnection(@Nullable PlayerConnection playerConnection) {
+        if (playerConnection == this.playerConnection)
+            return;
+
         if (playerConnection != null && playerConnection.getPlayer() != this) {
             throw new IllegalArgumentException("PlayerConnection belongs to the wrong player!");
         }
+        var oldConnection = this.playerConnection;
         this.playerConnection = playerConnection;
         if (playerConnection != null) {
             handlePlayerConnection(playerConnection);
         }
         server.getServerEvents().ON_PLAYER_CONNECTED.invoker().onPlayerConnected(this, playerConnection);
+
+        // Failsafe to ensure no duplicate connections
+        if (oldConnection != null) {
+            oldConnection.disconnect(PlayerConnection.DisconnectReason.UNKNOWN);
+        }
+    }
+
+    /**
+     * Disconnect the client from the server.
+     *
+     * @param reason Reason for disconnection.
+     * @return If there was a client connected.
+     * @implNote It's possible for the player to be disconnected without this being called.
+     * If subclasses need to perform extra logic, override {@link #handlePlayerDisconnection} instead.
+     */
+    public boolean disconnect(PlayerConnection.DisconnectReason reason) {
+        if (!isConnected())
+            return false;
+
+        assert playerConnection != null; // isConnected should check this
+        playerConnection.disconnect(reason);
+        return true;
     }
 
     /**
@@ -52,7 +75,7 @@ public abstract class WebSpeakPlayer {
         return playerConnection != null && playerConnection.isConnected();
     }
 
-    public WebSpeakPlayer(WebSpeakServer server, String playerId, String sessionId) {
+    public WebSpeakPlayer(WebSpeakServer<?> server, String playerId, String sessionId) {
         this.server = server;
         this.playerId = playerId;
         this.sessionId = sessionId;
@@ -63,7 +86,23 @@ public abstract class WebSpeakPlayer {
      * @param playerConnection Player who connected.
      */
     protected void handlePlayerConnection(PlayerConnection playerConnection) {
+        playerConnection.onDisconnected(reason -> handlePlayerDisconnection(playerConnection, reason));
+    }
 
+    /**
+     * Called whenever a player client has disconnected from the server.
+     *
+     * @param connection Disconnected client.
+     * @param reason     The reason for disconnection.
+     * @implNote It's possible for this to be called on a connection that is not active.
+     * Subclasses should compare it with {@link #getPlayerConnection()} first.
+     */
+    protected void handlePlayerDisconnection(PlayerConnection connection, PlayerConnection.DisconnectReason reason) {
+        if (connection == this.playerConnection) {
+            setPlayerConnection(null);
+        }
+        server.getServerEvents().ON_PLAYER_DISCONNECTED
+                .invoker().onPlayerDisconnected(this, playerConnection, reason);
     }
 
     /**

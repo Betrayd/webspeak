@@ -1,5 +1,6 @@
 package net.betrayd.webspeak;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 /**
@@ -7,11 +8,12 @@ import java.util.function.Consumer;
  * implementing Jetty and manage player connections.
  */
 public interface ServerBackend {
+
     /**
-     * Start the server, and block until it has started.
-     * @throws Exception If something goes wrong during startup.
+     * Start the server.
+     * @return A future that completes once a connection to the relay has been established.
      */
-    void start() throws Exception;
+    CompletableFuture<?> start();
 
     /**
      * Stop the server, and block until it has fully stopped.
@@ -24,6 +26,13 @@ public interface ServerBackend {
      * @param listener Connection listener
      */
     void onPlayerConnected(Consumer<PlayerConnection> listener);
+
+    /**
+     * Request a unique session ID from the relay.
+     * @return A future that completes once the relay responds with a session ID.
+     *
+     */
+    CompletableFuture<String> requestSessionID();
 
     boolean isRunning();
 }

@@ -32,9 +32,11 @@ dependencies {
     implementation 'org.eclipse.jetty.websocket:jetty-websocket-jetty-client:12.0.14'
 
     implementation 'com.google.guava:guava:32.1.2-jre'
-    implementation 'com.google.code.gson:gson:2.10.1'
+    api 'com.google.code.gson:gson:2.10.1'
 
     implementation 'org.jetbrains:annotations:24.0.0'
+
+    implementation 'dev.onvoid.webrtc:webrtc-java:0.13.0'
 
     // This dependency is exported to consumers, that is to say found on their compile classpath.
     api libs.commons.math3
