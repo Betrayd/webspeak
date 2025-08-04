@@ -1,16 +1,17 @@
 package net.betrayd.webspeak;
 
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
+import com.google.common.collect.Maps;
 import lombok.Getter;
 import lombok.NonNull;
 import net.betrayd.webspeak.event.ServerEvents;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
+import java.util.function.Function;
 
 /**
  * The main server for WebSpeak. Responsible for keeping track of players, managing coordinate updates,
@@ -36,59 +37,184 @@ public class WebSpeakServer<T extends WebSpeakPlayer> implements Executor {
 
     private final ConcurrentLinkedQueue<Runnable> tasks = new ConcurrentLinkedQueue<>();
 
-    private final Map<String, T> players = new HashMap<>();
-    private final Map<String, T> playersUnmodifiable = Collections.unmodifiableMap(players);
+    /**
+     * A map of all players with their session IDs.
+     */
+    private final BiMap<String, T> players = HashBiMap.create();
+    private final BiMap<String, T> playersUnmod = Maps.unmodifiableBiMap(players);
+
+    /**
+     * A map of all audio sources with their audio IDs.
+     */
+    private final BiMap<String, AudioSource3D> audioSources = HashBiMap.create();
+    private final BiMap<String, AudioSource3D> audioSourcesUnmod = Maps.unmodifiableBiMap(players);
+
 
     public WebSpeakServer(ServerBackend backend) {
         this.backend = backend;
     }
 
+    /**
+     * Return a map of all players with their session IDs.
+     * @return Unmodifiable map view. Updated when players are added or removed.
+     */
+    public final BiMap<String, T> getPlayers() {
+        return playersUnmod;
+    }
+
+    /**
+     * Return a map of all audio sources with their audio source IDs.
+     * @return Unmodifiable map view. Updated when audio sources are added or removed.
+     */
+    public final BiMap<String, AudioSource3D> getAudioSources() {
+        return audioSourcesUnmod;
+    }
+
+    /**
+     * Get a player by their session ID.
+     * @param sessionId Player's session ID.
+     * @return The player, or <code>null</code> if no player by that ID exists.
+     */
     @Nullable
-    public T getPlayer(String id) {
-        return players.get(id);
+    public final T getPlayer(String sessionId) {
+        return players.get(sessionId);
     }
 
     /**
-     * Get a map of all player IDs in the server with their corresponding players.
-     * @return Unmodifiable player map.
+     * Get a player's session ID.
+     * @param player Player to get.
+     * @return The session ID, or <code>null</code> if the player is not part of this server.
      */
-    public Map<String, T> getPlayers() {
-        return playersUnmodifiable;
+    @Nullable
+    public final String getSessionId(WebSpeakPlayer player) {
+        return players.inverse().get(player);
     }
 
     /**
-     * Attempt to add a player to the server.
+     * Get an audio source by its ID.
+     * @param audioId Audio source ID
+     * @return The audio source, or <code>null</code> if no audio source by that ID exists.
+     */
+    @Nullable
+    public final AudioSource3D getAudioSource(String audioId) {
+        return audioSources.get(audioId);
+    }
+
+    /**
+     * Get an audio source's audio ID.
+     * @param audioSource Audio source to get.
+     * @return The audio ID, or <code>null</code> if the audio source doesn't belong to this server.
+     */
+    @Nullable
+    public final String getAudioID(AudioSource3D audioSource) {
+        return audioSources.inverse().get(audioSource);
+    }
+
+    /**
+     * Add a player to the server.
      *
-     * @param player Player to add.
-     * @return <code>true</code> if the player was added; <code>false</code> if there was already a player with that ID.
+     * @param player    Player to add.
+     * @param sessionId Session ID to assign.
+     * @param audioId   Audio ID to assign.
      * @throws IllegalArgumentException If the player belongs to the wrong server.
+     * @throws IllegalStateException    If the session ID or audio ID already exist.
      */
-    public boolean addPlayer(T player) throws IllegalArgumentException {
+    public void addPlayer(T player, String sessionId, String audioId) throws IllegalArgumentException, IllegalStateException {
+        assertInTick();
         if (player.getServer() != this) {
             throw new IllegalArgumentException("Player belongs to the wrong server!");
         }
-        return players.putIfAbsent(player.getPlayerId(), player) == null;
-    }
 
-    public interface PlayerFactory<T extends WebSpeakPlayer> {
-        T create(WebSpeakServer<T> server, String playerId, String sessionId);
+        if (players.containsKey(sessionId)) {
+            throw new IllegalStateException("Duplicate session ID: " + sessionId);
+        }
+        if (audioSources.containsKey(audioId)) {
+            throw new IllegalStateException("Duplicate audio ID: " + audioId);
+        }
+        players.put(sessionId, player);
+        audioSources.put(audioId, player);
+
+        player.onPlayerAdded(sessionId, audioId);
+        serverEvents.ON_PLAYER_ADDED.invoker().onPlayerAdded(player, sessionId, audioId);
+        serverEvents.ON_AUDIO_SOURCE_ADDED.invoker().onAudioSourceAdded(player, audioId);
     }
 
     /**
-     * Generate a session ID, create a player, and add it to the server.
+     * Add an audio source to the server.
      *
-     * @param id      Player ID to assign. Must not already be present in map.
-     * @param factory Factory function to create the player (called <em>after</em> the session ID is created).
-     * @return A future that completes with the new player if it was successfully added.
+     * @param audioSource Audio source to add.
+     * @param audioId     ID to assign it.
+     * @return <code>true</code> if it was added; <code>false</code> if it wasn't due to a duplicate ID.
+     * @throws IllegalArgumentException If the audio source is a player (use addPlayer instead)
      */
-    public CompletableFuture<WebSpeakPlayer> createPlayer(String id, PlayerFactory<T> factory) {
-        return backend.requestSessionID().thenApplyAsync(session -> {
-            T player = factory.create(this, id, session);
-            if (!addPlayer(player)) {
-                throw new IllegalStateException("A player already exists with that ID.");
-            }
+    public boolean addAudioSource(AudioSource3D audioSource, String audioId) throws IllegalArgumentException {
+        assertInTick();
+        if (audioSource instanceof WebSpeakPlayer) {
+            throw new IllegalArgumentException("Players must be added through addPlayer");
+        }
+        if (audioSources.putIfAbsent(audioId, audioSource) == null) {
+            serverEvents.ON_AUDIO_SOURCE_ADDED.invoker().onAudioSourceAdded(audioSource, audioId);
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * Request a session ID from the relay and use it to create a player.
+     *
+     * @param audioId       Audio ID to assign.
+     * @param playerFactory Player factory method.
+     * @return A future that completes once the player has been created.
+     */
+    public CompletableFuture<T> createPlayer(String audioId, Function<WebSpeakServer<T>, T> playerFactory) {
+        assertInTick();
+        return backend.requestSessionID().thenApplyAsync(sid -> {
+            T player = playerFactory.apply(this);
+            addPlayer(player, sid, audioId);
             return player;
         }, this);
+    }
+
+    /**
+     * Remove a player from the server.
+     * @param player Player to remove.
+     * @return If the player was found and could be removed.
+     */
+    public boolean removePlayer(WebSpeakPlayer player) {
+        assertInTick();
+        if (players.containsValue(player)) {
+            player.onPlayerRemove();
+
+            String aid = audioSources.inverse().remove(player);
+            String sid = players.inverse().remove(player);
+
+            serverEvents.ON_AUDIO_SOURCE_REMOVED.invoker().onAudioSourceRemoved(player, aid);
+            serverEvents.ON_PLAYER_REMOVED.invoker().onPlayerRemoved(player, sid, aid);
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * Remove an audio source from the server.
+     * @param source Audio source to remove.
+     * @return If the audio source was found and could be removed.
+     * @implNote Delegates to removePlayer if audio source is a player.
+     */
+    public boolean removeAudioSource(AudioSource3D source) {
+        assertInTick();
+        if (source instanceof WebSpeakPlayer p) {
+            return removePlayer(p);
+        } else {
+            String aid = audioSources.inverse().remove(source);
+            if (aid != null) {
+                serverEvents.ON_AUDIO_SOURCE_REMOVED.invoker().onAudioSourceRemoved(source, aid);
+                return true;
+            }
+            return false;
+        }
     }
 
     /**
@@ -105,6 +231,12 @@ public class WebSpeakServer<T extends WebSpeakPlayer> implements Executor {
 
         endTick();
         inTick = false;
+    }
+
+    private void assertInTick() {
+        if (!isInTick()) {
+            throw new IllegalStateException("This function can only be called from within a webspeak tick.");
+        }
     }
 
     /**

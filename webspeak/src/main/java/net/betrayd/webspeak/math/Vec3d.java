@@ -13,6 +13,8 @@ import java.io.IOException;
 @JsonAdapter(VecJsonAdapter.class)
 public record Vec3d(double x, double y, double z) {
     public static final Vec3d ZERO = new Vec3d(0, 0, 0);
+    public static final Vec3d FORWARD = new Vec3d(0, 0, 1);
+    public static final Vec3d UP = new Vec3d(0, 1, 0);
 
     public Vec3d add(double x, double y, double z) {
         return new Vec3d(this.x + x, this.y + y, this.z + z);

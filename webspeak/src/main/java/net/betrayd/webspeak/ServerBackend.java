@@ -16,14 +16,15 @@ public interface ServerBackend {
     CompletableFuture<?> start();
 
     /**
-     * Stop the server, and block until it has fully stopped.
-     * @throws Exception If something goes wrong during shutdown.
+     * Stop the server.
+     * @return A future that completes once the server has fully stopped.
      */
-    void stop() throws Exception;
+    CompletableFuture<?> stop();
 
     /**
      * Register a listener for when a player connects to the server.
      * @param listener Connection listener
+     * @implNote Could get called on a thread that's <em>not</em> the server thread.
      */
     void onPlayerConnected(Consumer<PlayerConnection> listener);
 

@@ -7,7 +7,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * A player that contains a connection, can obtain coordinates, etc.
  */
-public abstract class WebSpeakPlayer {
+public abstract class WebSpeakPlayer implements AudioSource3D {
 
     /**
      * The server the player belongs to.
@@ -15,21 +15,29 @@ public abstract class WebSpeakPlayer {
     @Getter
     private final WebSpeakServer<?> server;
 
-    /**
-     * The public-facing player ID that identifies it across all clients.
-     */
-    @Getter
-    private final String playerId;
-
-    /**
-     * The private session ID which the player's own client uses to connect.
-     */
-    @Getter
-    private final String sessionId;
-
 
     @Nullable @Getter
     private PlayerConnection playerConnection;
+
+    public WebSpeakPlayer(WebSpeakServer<?> server) {
+        this.server = server;
+    }
+
+    public String getSessionId() {
+        String id = server.getSessionId(this);
+        if (id == null) {
+            throw new IllegalStateException("This player has been removed from its server!");
+        }
+        return id;
+    }
+
+    public String getAudioId() {
+        String id = server.getAudioID(this);
+        if (id == null) {
+            throw new IllegalStateException("This player has been removed from its server!");
+        }
+        return id;
+    }
 
     public void setPlayerConnection(@Nullable PlayerConnection playerConnection) {
         if (playerConnection == this.playerConnection)
@@ -75,12 +83,6 @@ public abstract class WebSpeakPlayer {
         return playerConnection != null && playerConnection.isConnected();
     }
 
-    public WebSpeakPlayer(WebSpeakServer<?> server, String playerId, String sessionId) {
-        this.server = server;
-        this.playerId = playerId;
-        this.sessionId = sessionId;
-    }
-
     /**
      * Called when a client has connected to this player to set up packet listeners, etc.
      * @param playerConnection Player who connected.
@@ -103,6 +105,24 @@ public abstract class WebSpeakPlayer {
         }
         server.getServerEvents().ON_PLAYER_DISCONNECTED
                 .invoker().onPlayerDisconnected(this, playerConnection, reason);
+    }
+
+    /**
+     * Called when the player is added to the server.
+     * @param sessionId The assigned session ID.
+     * @param playerId The assigned player ID.
+     */
+    public void onPlayerAdded(String sessionId, String playerId) {
+
+    }
+
+    /**
+     * Called when the player is being removed from the server.
+     */
+    public void onPlayerRemove() {
+        if (playerConnection != null && playerConnection.isConnected()) {
+            playerConnection.disconnect(PlayerConnection.DisconnectReason.PLAYER_REMOVED);
+        }
     }
 
     /**
