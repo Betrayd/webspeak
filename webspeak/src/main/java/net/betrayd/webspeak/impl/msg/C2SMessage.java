@@ -1,4 +1,4 @@
-package net.betrayd.webspeak.impl.net;
+package net.betrayd.webspeak.impl.msg;
 
 import com.google.gson.JsonElement;
 import net.betrayd.webspeak.WebSpeakPlayer;

@@ -9,6 +9,10 @@ import java.util.function.Consumer;
  */
 public interface ServerBackend {
 
+    interface ServerStopEvent {
+        void onServerStop(int statusCode, String reason);
+    }
+
     /**
      * Start the server.
      * @return A future that completes once a connection to the relay has been established.
@@ -21,12 +25,20 @@ public interface ServerBackend {
      */
     CompletableFuture<?> stop();
 
+
     /**
      * Register a listener for when a player connects to the server.
      * @param listener Connection listener
      * @implNote Could get called on a thread that's <em>not</em> the server thread.
      */
     void onPlayerConnected(Consumer<PlayerConnection> listener);
+
+    /**
+     * Register a listener for when the backend shuts down.
+     * @param listener Stop listener.
+     * @implNote Could get called on a thread that's <em>not</em> the server thread.
+     */
+    void onStop(ServerStopEvent listener);
 
     /**
      * Request a unique session ID from the relay.
@@ -36,4 +48,6 @@ public interface ServerBackend {
     CompletableFuture<String> requestSessionID();
 
     boolean isRunning();
+
+    void tick();
 }

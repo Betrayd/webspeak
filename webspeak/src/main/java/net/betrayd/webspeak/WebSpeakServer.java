@@ -227,6 +227,7 @@ public class WebSpeakServer<T extends WebSpeakPlayer> implements Executor {
         tickThread = Thread.currentThread();
         startTick();
 
+        backend.tick();
         executeTasks();
 
         endTick();

@@ -1,4 +1,4 @@
-package net.betrayd.webspeak.impl.net;
+package net.betrayd.webspeak.impl.msg;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
