@@ -2,6 +2,7 @@ package net.betrayd.webspeak;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * A "backend type" that a webspeak server can use. This will handle
@@ -50,4 +51,10 @@ public interface ServerBackend {
     boolean isRunning();
 
     void tick();
+
+    /**
+     * Add a supplier to this backend that obtains a webspeak player based on their session ID.
+     * @implNote Could get called on a thread that's <em>not</em> the server thread.
+     */
+    void setPlayerSupplier(Function<? super String, ? extends WebSpeakPlayer> playerSupplier);
 }

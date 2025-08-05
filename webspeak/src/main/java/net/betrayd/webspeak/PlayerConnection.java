@@ -4,6 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 public interface PlayerConnection {
 
@@ -44,13 +45,14 @@ public interface PlayerConnection {
      * Send a message to the client.
      * @param message Raw JSON message.
      */
-    void sendMessage(JsonElement message);
+    void sendMessage(String message);
 
     /**
      * Register a listener for when any message is received from the client.
      * @param listener Message receive listener.
+     * @implNote May be called on a thread other than the server thread, and outside a tick.
      */
-    void onReceiveMessage(Consumer<JsonElement> listener);
+    void onReceiveMessage(Consumer<String> listener);
 
     /**
      * Check if the client is still connected.
@@ -66,7 +68,7 @@ public interface PlayerConnection {
     /**
      * Register a listener for when the client has disconnected from the server.
      * @param listener Client disconnect listener.
+     * @implNote May be called on a thread other than the server thread, and outside a tick.
      */
     void onDisconnected(Consumer<DisconnectReason> listener);
-
 }
