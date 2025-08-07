@@ -234,7 +234,7 @@ public class WebSpeakServer<T extends WebSpeakPlayer> implements Executor {
         inTick = false;
     }
 
-    private void assertInTick() {
+    void assertInTick() {
         if (!isInTick()) {
             throw new IllegalStateException("This function can only be called from within a webspeak tick.");
         }

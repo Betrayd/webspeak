@@ -37,11 +37,6 @@ public interface PlayerConnection {
     }
 
     /**
-     * Get the webspeak player that this connection belongs to.
-     */
-    WebSpeakPlayer getPlayer();
-
-    /**
      * Send a message to the client.
      * @param message Raw JSON message.
      */

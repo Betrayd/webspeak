@@ -3,8 +3,8 @@ package net.betrayd.webspeak.impl.net;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import lombok.Getter;
-import net.betrayd.webspeak.impl.msg.S2CMessage;
-import net.betrayd.webspeak.impl.relay.RelayBackend.RelayMessages;
+import net.betrayd.webspeak.event.WebSpeakEvent;
+import net.betrayd.webspeak.impl.relay.RelayMessages;
 import org.eclipse.jetty.websocket.api.Callback;
 import org.eclipse.jetty.websocket.api.Session;
 import org.jetbrains.annotations.Nullable;
@@ -15,6 +15,7 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 /**
  * A single websocket connection which emulates multiple connections.
@@ -22,6 +23,42 @@ import java.util.function.BiFunction;
 public class WSMultiConnection implements Session.Listener.AutoDemanding {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(WSMultiConnection.class);
+
+    /**
+     * Called when the primary websocket connection has been established.
+     */
+    @Getter
+    private final WebSpeakEvent<Consumer<Session>> onOpen = WebSpeakEvent.createSimple();
+
+    public interface OnCloseEvent {
+        void onClose(int statusCode, String reason);
+    }
+
+    /**
+     * Called when the primary websocket connection has closed.
+     */
+    @Getter
+    private final WebSpeakEvent<OnCloseEvent> onClose = WebSpeakEvent.createArrayBacked(
+            listeners -> (code, reason) -> {
+                for (var l : listeners)
+                    l.onClose(code, reason);
+            }
+    );
+
+    public interface OnReturnSessionId {
+        void onReturnSessionId(int requestId, String id);
+    }
+
+    /**
+     * Called when a returnSessionId message is received.
+     */
+    @Getter
+    private final WebSpeakEvent<OnReturnSessionId> onReturnSessionId = WebSpeakEvent.createArrayBacked(
+            listeners -> (req, id) -> {
+                for (var l : listeners)
+                    l.onReturnSessionId(req, id);
+            }
+    );
 
     private final BiFunction<SimpleWSSession, String, SimpleWSSession.Listener> listenerFactory;
 
@@ -38,23 +75,25 @@ public class WSMultiConnection implements Session.Listener.AutoDemanding {
         this.listenerFactory = listenerFactory;
     }
 
+
     /**
      * Send a message intended to be handled by the relay.
      * @param message Message to send
      * @param callback callback to notify when the send operation is complete
      */
-    public void sendRelayMessage(S2CMessage message, Callback callback) {
+    public void sendRelayMessage(String message, Callback callback) {
         var base = baseSession;
         if (base == null) {
             throw getNoBase();
         }
-        String msg = ";" + RelayMessages.writeMessage(message);
+        String msg = ";" + message;
         base.sendText(msg, callback);
     }
 
     @Override
     public void onWebSocketOpen(Session session) {
         this.baseSession = session;
+        onOpen.invoker().accept(session);
     }
 
     @Override
@@ -102,28 +141,36 @@ public class WSMultiConnection implements Session.Listener.AutoDemanding {
         JsonObject message = GSON.fromJson(payload, JsonObject.class);
         String type = message.get("type").getAsString();
 
-        if (type.equals("addClient")) {
-            handleAddClient(GSON.fromJson(message, RelayMessages.AddClientMessage.class));
-        } else if (type.equals("closeClient")) {
-            handleCloseClient(GSON.fromJson(message, RelayMessages.CloseClientMessage.class));
+        if (type.equals(RelayMessages.R2SAddedClient.TYPE)) {
+            handleAddClient(GSON.fromJson(message, RelayMessages.R2SAddedClient.class));
+        } else if (type.equals(RelayMessages.R2SClosedClient.TYPE)) {
+            handleCloseClient(GSON.fromJson(message, RelayMessages.R2SClosedClient.class));
+        } else if (type.equals(RelayMessages.R2SReturnSessionId.TYPE)) {
+            handleReturnSessionId(GSON.fromJson(message, RelayMessages.R2SReturnSessionId.class));
         } else {
-            LOGGER.warn("Unknown relay message type; {}", type);
+            LOGGER.warn("Unknown relay message type: {}", type);
         }
     }
 
-    public void handleAddClient(RelayMessages.AddClientMessage msg) {
-        SimpleSession session = new SimpleSession(msg.sessionId());
-        var listener = listenerFactory.apply(session, msg.sessionId());
-        if (listeners.put(msg.sessionId(), listener) != null) {
-            LOGGER.warn("Second client connected with duplicate session id: {}", msg.sessionId());
+    private void handleAddClient(RelayMessages.R2SAddedClient msg) {
+        SimpleSession session = new SimpleSession(msg.id());
+        var listener = listenerFactory.apply(session, msg.id());
+        if (listener == null) {
+            LOGGER.warn("Cannot create listener for session id: {}", msg.id());
+        } else if (listeners.put(msg.id(), listener) != null) {
+            LOGGER.warn("Second client connected with duplicate session id: {}", msg.id());
         }
     }
 
-    public void handleCloseClient(RelayMessages.CloseClientMessage msg) {
-        var listener = listeners.remove(msg.sessionId());
+    private void handleCloseClient(RelayMessages.R2SClosedClient msg) {
+        var listener = listeners.remove(msg.id());
         if (listener != null) {
             listener.onWebSocketClose(msg.statusCode(), msg.reason());
         }
+    }
+
+    private void handleReturnSessionId(RelayMessages.R2SReturnSessionId msg) {
+        onReturnSessionId.invoker().onReturnSessionId(msg.requestId(), msg.id());
     }
 
     @Override
@@ -131,6 +178,7 @@ public class WSMultiConnection implements Session.Listener.AutoDemanding {
         for (var l : listeners.values()) {
             l.onWebSocketError(cause);
         }
+        LOGGER.error("Error in websocket connection: ", cause);
     }
 
     @Override
@@ -138,6 +186,7 @@ public class WSMultiConnection implements Session.Listener.AutoDemanding {
         for (var l : listeners.values()) {
             l.onWebSocketClose(statusCode, reason);
         }
+        onClose.invoker().onClose(statusCode, reason);
     }
 
     private IllegalStateException getNoBase() {
@@ -148,6 +197,8 @@ public class WSMultiConnection implements Session.Listener.AutoDemanding {
     class SimpleSession implements SimpleWSSession {
 
         final String id;
+
+        volatile boolean isClosed;
 
         SimpleSession(String id) {
             this.id = id;
@@ -165,19 +216,26 @@ public class WSMultiConnection implements Session.Listener.AutoDemanding {
 
         @Override
         public void close(int statusCode, String reason, Callback callback) {
-            sendRelayMessage(new RelayMessages.CloseClientMessage(id, statusCode, reason), callback);
+            String msg = RelayMessages.serializeRelayMessage(RelayMessages.S2RDisconnectClient.TYPE,
+                    new RelayMessages.S2RDisconnectClient(id, statusCode, reason));
+            sendRelayMessage(msg, callback);
+            listeners.remove(id);
+            isClosed = true;
         }
 
         @Override
         public void disconnect() {
-            sendRelayMessage(new RelayMessages.DisconnectClientMessage(id), Callback.NOOP);
+            String msg = RelayMessages.serializeRelayMessage(RelayMessages.S2RDisconnectClient.TYPE,
+                    new RelayMessages.S2RDisconnectClient(id, -1, ""));
+            sendRelayMessage(msg, Callback.NOOP);
             listeners.remove(id);
+            isClosed = true;
         }
 
         @Override
         public boolean isOpen() {
             var base = baseSession;
-            return base != null && base.isOpen();
+            return !isClosed && base != null && base.isOpen();
         }
 
         @Override

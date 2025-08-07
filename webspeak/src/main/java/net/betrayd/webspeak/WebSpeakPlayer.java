@@ -40,12 +40,11 @@ public abstract class WebSpeakPlayer implements AudioSource3D {
     }
 
     public void setPlayerConnection(@Nullable PlayerConnection playerConnection) {
+        server.assertInTick();
+
         if (playerConnection == this.playerConnection)
             return;
 
-        if (playerConnection != null && playerConnection.getPlayer() != this) {
-            throw new IllegalArgumentException("PlayerConnection belongs to the wrong player!");
-        }
         var oldConnection = this.playerConnection;
         this.playerConnection = playerConnection;
         if (playerConnection != null) {
@@ -56,6 +55,12 @@ public abstract class WebSpeakPlayer implements AudioSource3D {
         // Failsafe to ensure no duplicate connections
         if (oldConnection != null) {
             oldConnection.disconnect(PlayerConnection.DisconnectReason.UNKNOWN);
+        }
+
+        // Setup listeners
+        if (playerConnection != null) {
+            playerConnection.onDisconnected(reason -> server.execute(() -> handlePlayerDisconnection(playerConnection, reason)));
+
         }
     }
 
@@ -68,6 +73,7 @@ public abstract class WebSpeakPlayer implements AudioSource3D {
      * If subclasses need to perform extra logic, override {@link #handlePlayerDisconnection} instead.
      */
     public boolean disconnect(PlayerConnection.DisconnectReason reason) {
+        server.assertInTick();
         if (!isConnected())
             return false;
 
@@ -88,6 +94,7 @@ public abstract class WebSpeakPlayer implements AudioSource3D {
      * @param playerConnection Player who connected.
      */
     protected void handlePlayerConnection(PlayerConnection playerConnection) {
+        server.assertInTick();
         playerConnection.onDisconnected(reason -> handlePlayerDisconnection(playerConnection, reason));
     }
 
@@ -100,6 +107,7 @@ public abstract class WebSpeakPlayer implements AudioSource3D {
      * Subclasses should compare it with {@link #getPlayerConnection()} first.
      */
     protected void handlePlayerDisconnection(PlayerConnection connection, PlayerConnection.DisconnectReason reason) {
+        server.assertInTick();
         if (connection == this.playerConnection) {
             setPlayerConnection(null);
         }
@@ -120,6 +128,7 @@ public abstract class WebSpeakPlayer implements AudioSource3D {
      * Called when the player is being removed from the server.
      */
     public void onPlayerRemove() {
+        server.assertInTick();
         if (playerConnection != null && playerConnection.isConnected()) {
             playerConnection.disconnect(PlayerConnection.DisconnectReason.PLAYER_REMOVED);
         }

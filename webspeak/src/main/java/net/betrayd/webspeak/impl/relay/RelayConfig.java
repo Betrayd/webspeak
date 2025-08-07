@@ -1,4 +1,4 @@
-package net.betrayd.webspeak.impl.relay.RelayBackend;
+package net.betrayd.webspeak.impl.relay;
 
 import lombok.Builder;
 import lombok.Getter;
