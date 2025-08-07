@@ -1,4 +1,4 @@
-package net.betrayd.webspeak.impl.net;
+package net.betrayd.webspeak.impl.relay;
 
 import org.eclipse.jetty.websocket.api.Callback;
 import org.eclipse.jetty.websocket.api.Session;

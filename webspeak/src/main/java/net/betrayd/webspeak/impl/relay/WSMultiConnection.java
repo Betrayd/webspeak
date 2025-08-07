@@ -1,10 +1,9 @@
-package net.betrayd.webspeak.impl.net;
+package net.betrayd.webspeak.impl.relay;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import lombok.Getter;
 import net.betrayd.webspeak.event.WebSpeakEvent;
-import net.betrayd.webspeak.impl.relay.RelayMessages;
 import org.eclipse.jetty.websocket.api.Callback;
 import org.eclipse.jetty.websocket.api.Session;
 import org.jetbrains.annotations.Nullable;

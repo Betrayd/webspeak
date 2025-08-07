@@ -5,8 +5,6 @@ import net.betrayd.webspeak.PlayerConnection;
 import net.betrayd.webspeak.ServerBackend;
 import net.betrayd.webspeak.WebSpeakPlayer;
 import net.betrayd.webspeak.event.WebSpeakEvent;
-import net.betrayd.webspeak.impl.net.SimpleWSSession;
-import net.betrayd.webspeak.impl.net.WSMultiConnection;
 import org.eclipse.jetty.websocket.api.Callback;
 import org.eclipse.jetty.websocket.api.StatusCode;
 import org.slf4j.Logger;
@@ -52,7 +50,7 @@ public class RelayBackend implements ServerBackend {
 
     @Override
     public void onStop(ServerStopEvent listener) {
-
+        
     }
 
     @Override
