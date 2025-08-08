@@ -35,6 +35,13 @@ public interface ServerBackend {
     void onPlayerConnected(Consumer<PlayerConnection> listener);
 
     /**
+     * Register a listener for when a player disconnects from the server.
+     * @param listener Disconnection listener
+     * @implNote Could get called on a thread that's <em>not</em> the server thread.
+     */
+    void onPlayerDisconnect(Consumer<PlayerConnection> listener);
+
+    /**
      * Register a listener for when the backend shuts down.
      * @param listener Stop listener.
      * @implNote Could get called on a thread that's <em>not</em> the server thread.

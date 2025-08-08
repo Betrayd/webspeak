@@ -29,8 +29,30 @@ public class RelayBackend implements ServerBackend {
     private static final Map<Integer, CompletableFuture<String>> sessionIdRequests = new ConcurrentHashMap<>();
     private static final AtomicInteger nextIdRequest = new AtomicInteger();
 
+    /**
+     * Called when a player connects to the server.
+     */
+    private final WebSpeakEvent<Consumer<PlayerConnection>> onPlayerConnected = WebSpeakEvent.createSimple();
+    /**
+     * Called when a player disconnects from the server.
+     */
+    private final WebSpeakEvent<Consumer<PlayerConnection>> onPlayerDisconnected = WebSpeakEvent.createSimple();
+    /**
+     * Called after the server is stopped.
+     */
+    private final WebSpeakEvent<ServerStopEvent> onStop = WebSpeakEvent.createArrayBacked(
+            listeners -> (statusCode, reason) -> {
+                for (var l : listeners)
+                    l.onServerStop(statusCode, reason);
+            }
+    );
+
     public RelayBackend() {
         connection.getOnReturnSessionId().addListener(this::onReturnSessionId);
+        connection.getOnClose().addListener((statusCode, reason) -> {
+            onStop.invoker().onServerStop(statusCode, reason);
+        });
+
     }
 
     @Override
@@ -38,19 +60,29 @@ public class RelayBackend implements ServerBackend {
         return null;
     }
 
+    //TODO: should this be returning the future in the same place as onStop when the server stops or just here? Should we call stop when the socket stops instead of just calling onStop? should onStop invoker be here instead?
     @Override
     public CompletableFuture<?> stop() {
-        return null;
+        Callback.Completable future = new Callback.Completable();
+
+        connection.close(1001, "Server shutdown", future);
+
+        return future;
     }
 
     @Override
     public void onPlayerConnected(Consumer<PlayerConnection> listener) {
-        
+        onPlayerConnected.addListener(listener);
+    }
+
+    @Override
+    public void onPlayerDisconnect(Consumer<PlayerConnection> listener){
+        onPlayerDisconnected.addListener(listener);
     }
 
     @Override
     public void onStop(ServerStopEvent listener) {
-        
+        onStop.addListener(listener);
     }
 
     @Override
