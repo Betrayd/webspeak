@@ -14,6 +14,10 @@ public interface ServerBackend {
         void onServerStop(int statusCode, String reason);
     }
 
+    interface PlayerDisconnectEvent {
+        void onDisconnect(PlayerConnection.DisconnectReason  reason, PlayerConnection connection);
+    }
+
     /**
      * Start the server.
      * @return A future that completes once a connection to the relay has been established.
@@ -39,7 +43,7 @@ public interface ServerBackend {
      * @param listener Disconnection listener
      * @implNote Could get called on a thread that's <em>not</em> the server thread.
      */
-    void onPlayerDisconnect(Consumer<PlayerConnection> listener);
+    void onPlayerDisconnect(PlayerDisconnectEvent listener);
 
     /**
      * Register a listener for when the backend shuts down.

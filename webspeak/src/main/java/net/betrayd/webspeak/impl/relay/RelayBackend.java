@@ -36,7 +36,12 @@ public class RelayBackend implements ServerBackend {
     /**
      * Called when a player disconnects from the server.
      */
-    private final WebSpeakEvent<Consumer<PlayerConnection>> onPlayerDisconnected = WebSpeakEvent.createSimple();
+    private final WebSpeakEvent<PlayerDisconnectEvent> onPlayerDisconnected = WebSpeakEvent.createArrayBacked(
+            listeners -> (reason, connection) -> {
+                for (var l : listeners)
+                    l.onDisconnect(reason, connection);
+            }
+    );
     /**
      * Called after the server is stopped.
      */
@@ -52,7 +57,6 @@ public class RelayBackend implements ServerBackend {
         connection.getOnClose().addListener((statusCode, reason) -> {
             onStop.invoker().onServerStop(statusCode, reason);
         });
-
     }
 
     @Override
@@ -60,12 +64,16 @@ public class RelayBackend implements ServerBackend {
         return null;
     }
 
-    //TODO: should this be returning the future in the same place as onStop when the server stops or just here? Should we call stop when the socket stops instead of just calling onStop? should onStop invoker be here instead?
     @Override
     public CompletableFuture<?> stop() {
         Callback.Completable future = new Callback.Completable();
 
-        connection.close(1001, "Server shutdown", future);
+        var base = connection.getBaseSession();
+        if (base == null) {
+            future.fail(new IllegalStateException("Base session is not connected!"));
+            return future;
+        }
+        base.close(1001, "Server shutdown", future);
 
         return future;
     }
@@ -75,8 +83,9 @@ public class RelayBackend implements ServerBackend {
         onPlayerConnected.addListener(listener);
     }
 
+    //TODO: should this also return reason?
     @Override
-    public void onPlayerDisconnect(Consumer<PlayerConnection> listener){
+    public void onPlayerDisconnect(PlayerDisconnectEvent listener){
         onPlayerDisconnected.addListener(listener);
     }
 
@@ -118,7 +127,10 @@ public class RelayBackend implements ServerBackend {
 
     @Override
     public boolean isRunning() {
-        return false;
+        if(connection.getBaseSession() == null){
+            return false;
+        }
+        return connection.getBaseSession().isOpen();
     }
 
     @Override
@@ -132,17 +144,20 @@ public class RelayBackend implements ServerBackend {
     }
 
     public final SimpleWSSession.Listener createListener(SimpleWSSession session, String id) {
-        return null;
+        RelayPlayerConnection playerConnection = new RelayPlayerConnection(session, id);
+        onPlayerConnected.invoker().accept(playerConnection);
+        playerConnection.onDisconnected((reason) -> {onPlayerDisconnected.invoker().onDisconnect(reason, playerConnection);});
+        return playerConnection;
     }
 
-    static class ReplayPlayerConnection implements PlayerConnection, SimpleWSSession.Listener {
+    static class RelayPlayerConnection implements PlayerConnection, SimpleWSSession.Listener {
         final SimpleWSSession session;
         final String id;
 
         final WebSpeakEvent<Consumer<String>> onReceiveMessage = WebSpeakEvent.createSimple();
         final WebSpeakEvent<Consumer<DisconnectReason>> onDisconnect = WebSpeakEvent.createSimple();
 
-        ReplayPlayerConnection(SimpleWSSession session, String id) {
+        RelayPlayerConnection(SimpleWSSession session, String id) {
             this.session = session;
             this.id = id;
         }

@@ -74,14 +74,6 @@ public class WSMultiConnection implements Session.Listener.AutoDemanding {
         this.listenerFactory = listenerFactory;
     }
 
-    public void close(int statusCode, String reason, Callback callback){
-        var base = baseSession;
-        if (base == null) {
-            throw getNoBase();
-        }
-        base.close(statusCode, reason, callback);
-    }
-
     /**
      * Send a message intended to be handled by the relay.
      * @param message Message to send
