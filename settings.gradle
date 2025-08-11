@@ -12,3 +12,4 @@ plugins {
 
 rootProject.name = 'webspeak'
 include('webspeak')
+include('testapp')
