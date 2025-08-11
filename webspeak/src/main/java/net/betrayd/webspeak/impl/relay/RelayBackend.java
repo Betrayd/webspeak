@@ -2,6 +2,7 @@ package net.betrayd.webspeak.impl.relay;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import lombok.Getter;
 import net.betrayd.webspeak.ServerBackend;
 import net.betrayd.webspeak.event.Event;
 import org.eclipse.jetty.websocket.api.Callback;
@@ -20,10 +21,11 @@ public class RelayBackend implements ServerBackend, Session.Listener.AutoDemandi
 
     private static final Logger LOGGER = LoggerFactory.getLogger(RelayBackend.class);
 
-    private CompletableFuture<?> shutdownFuture;
-    private @Nullable Session session;
+    private @Nullable Session relaySession;
 
-    private final Event.Invokable<Session> onWsOpen = Event.create();
+    @Getter
+    private final CompletableFuture<Session> onWsOpen = new CompletableFuture<>();
+
     private final Event.Invokable<String> onClientConnected = Event.create();
     private final Event.Invokable<ClientDisconnectEvent> onClientDisconnected = Event.create();
     private final Event.Invokable<MessageReceivedEvent> onMessageReceived = Event.create();
@@ -33,33 +35,16 @@ public class RelayBackend implements ServerBackend, Session.Listener.AutoDemandi
     private final Map<Integer, CompletableFuture<String>> sessionRequests = new ConcurrentHashMap<>();
     private final AtomicInteger nextIdRequest = new AtomicInteger();
 
-    public Event<Session> getOnWsOpen() {
-        return onWsOpen;
-    }
 
-
-    // TODO: PLEAASSEEE don't let this implementation stay. It's bad.
     @Override
-    public synchronized CompletableFuture<?> stop() {
-        if (session == null) {
+    public CompletableFuture<?> close() {
+        if (relaySession == null) {
             throw getNoSession();
         }
-        if (shutdownFuture == null) {
-            shutdownFuture = new CompletableFuture<>();
 
-            session.close(1001, "Server shutting down", new Callback() {
-                @Override
-                public void succeed() {
-                    shutdownFuture.complete(null);
-                }
-
-                @Override
-                public void fail(Throwable x) {
-                    shutdownFuture.completeExceptionally(x);
-                }
-            });
-        }
-        return shutdownFuture;
+        var future = new Callback.Completable();
+        relaySession.close(1001, "Server closed", future);
+        return future;
     }
 
     @Override
@@ -74,19 +59,21 @@ public class RelayBackend implements ServerBackend, Session.Listener.AutoDemandi
 
     @Override
     public CompletableFuture<?> disconnectClient(String sessionId, String reason) {
-        if (session == null)
+        if (relaySession == null)
             throw getNoSession();
 
         var message = new RelayMessages.S2RDisconnectClient(sessionId, 1000, reason);
         var future = new Callback.Completable();
-        session.sendText(";" + RelayMessages.write(message), future);
+        relaySession.sendText(";" + RelayMessages.write(message), future);
+
+        future.thenRun(() -> onClientDisconnected.invoke(new ClientDisconnectEvent(sessionId, DisconnectReason.SERVER_DISCONNECT)));
 
         return future;
     }
 
     @Override
     public CompletableFuture<String> requestSessionId() {
-        if (session == null)
+        if (relaySession == null)
             throw getNoSession();
 
         int request = nextIdRequest.getAndIncrement();
@@ -96,7 +83,7 @@ public class RelayBackend implements ServerBackend, Session.Listener.AutoDemandi
 
         String msg = RelayMessages.write(new RelayMessages.S2RGetSessionId(request));
 
-        session.sendText(";" + msg, new Callback() {
+        relaySession.sendText(";" + msg, new Callback() {
             @Override
             public void fail(Throwable x) {
                 future.completeExceptionally(x);
@@ -108,12 +95,12 @@ public class RelayBackend implements ServerBackend, Session.Listener.AutoDemandi
 
     @Override
     public CompletableFuture<?> releaseSessionId(String sessionId, String reason) {
-        if (session == null)
+        if (relaySession == null)
             throw getNoSession();
 
         var message = new RelayMessages.S2RReleaseSessionId(sessionId, 1001, reason);
         var future = new Callback.Completable();
-        session.sendText(";" + RelayMessages.write(message), future);
+        relaySession.sendText(";" + RelayMessages.write(message), future);
 
         return future;
     }
@@ -125,11 +112,11 @@ public class RelayBackend implements ServerBackend, Session.Listener.AutoDemandi
 
     @Override
     public CompletableFuture<?> sendMessage(String sessionId, String message) {
-        if (session == null)
+        if (relaySession == null)
             throw getNoSession();
 
         var future = new Callback.Completable();
-        session.sendText(sessionId + ";" + message, future);
+        relaySession.sendText(sessionId + ";" + message, future);
 
         return future;
     }
@@ -146,24 +133,24 @@ public class RelayBackend implements ServerBackend, Session.Listener.AutoDemandi
 
     @Override
     public boolean isOpen() {
-        return session != null && session.isOpen();
+        return relaySession != null && relaySession.isOpen();
     }
 
     // WS listeners
 
     @Override
     public void onWebSocketOpen(Session session) {
-        this.session = session;
-        onWsOpen.invoke(session);
+        this.relaySession = session;
+        onWsOpen.complete(session);
     }
 
     @Override
     public void onWebSocketPing(ByteBuffer payload) {
-        if (session == null) {
+        if (relaySession == null) {
             throw getNoSession();
         }
 
-        session.sendPong(payload, Callback.NOOP);
+        relaySession.sendPong(payload, Callback.NOOP);
     }
 
     private static final Gson GSON = new Gson();
@@ -212,6 +199,7 @@ public class RelayBackend implements ServerBackend, Session.Listener.AutoDemandi
         onClientConnected.invoke(msg.id());
     }
 
+    // TODO: There's a chance the relay will also send this packet when the server initiates the close.
     private void handleCloseClient(RelayMessages.R2SClosedClient msg) {
         onClientDisconnected.invoke(new ClientDisconnectEvent(msg.id(), DisconnectReason.CLIENT_DISCONNECT));
     }

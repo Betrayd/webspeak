@@ -29,7 +29,7 @@ public interface ServerBackend {
      *
      * @return A future that completes once the server has fully stopped.
      */
-    CompletableFuture<?> stop();
+    CompletableFuture<?> close();
 
     /**
      * Called when a client browser connects to the server.

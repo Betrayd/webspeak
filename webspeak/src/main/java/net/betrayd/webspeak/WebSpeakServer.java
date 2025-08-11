@@ -61,6 +61,7 @@ public class WebSpeakServer implements Executor {
         }
 
         onEndTick.invoke(this);
+        inTick = false;
     }
 
     /**
