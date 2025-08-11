@@ -7,6 +7,7 @@ import net.betrayd.webspeak.WebSpeakPlayer;
 import net.betrayd.webspeak.event.WebSpeakEvent;
 import org.eclipse.jetty.websocket.api.Callback;
 import org.eclipse.jetty.websocket.api.StatusCode;
+import org.eclipse.jetty.websocket.client.WebSocketClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,6 +29,8 @@ public class RelayBackend implements ServerBackend {
 
     private static final Map<Integer, CompletableFuture<String>> sessionIdRequests = new ConcurrentHashMap<>();
     private static final AtomicInteger nextIdRequest = new AtomicInteger();
+
+    private final WebSocketClient webSocketClient = new WebSocketClient();
 
     /**
      * Called when a player connects to the server.
@@ -61,7 +64,15 @@ public class RelayBackend implements ServerBackend {
 
     @Override
     public CompletableFuture<?> start() {
-        return null;
+        CompletableFuture<String> future = new CompletableFuture<>();
+        try{
+            webSocketClient.start();
+            webSocketClient.connect(connection, );
+        }
+        catch (Exception e) {
+            future.completeExceptionally(e);
+        }
+        return future;
     }
 
     @Override
