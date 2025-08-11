@@ -9,21 +9,6 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface ServerBackend {
 
-    enum DisconnectReason {
-        /**
-         * Signifies the client has requested the disconnect.
-         */
-        CLIENT_DISCONNECT,
-        /**
-         * Signifies the server has requested the disconnect.
-         */
-        SERVER_DISCONNECT,
-        /**
-         * Signifies the connection was dropped for any other reason.
-         */
-        CONNECTION_LOST
-    }
-
     /**
      * Stop the server.
      *
@@ -36,7 +21,7 @@ public interface ServerBackend {
      */
     Event<String> getOnClientConnected();
 
-    record ClientDisconnectEvent(String sessionId, DisconnectReason reason) {
+    record ClientDisconnectEvent(String sessionId, int statusCode, String reason) {
     }
 
     /**
@@ -47,11 +32,12 @@ public interface ServerBackend {
     /**
      * Disconnect a client without releasing its session ID.
      *
-     * @param sessionId ID of the client to disconnect.
-     * @param reason    Explanation to display to the user.
+     * @param sessionId  ID of the client to disconnect.
+     * @param statusCode Websocket disconnect status code to send.
+     * @param reason     Explanation to display to the user.
      * @return A future that completes once the message has been sent.
      */
-    CompletableFuture<?> disconnectClient(String sessionId, String reason);
+    CompletableFuture<?> disconnectClient(String sessionId, int statusCode, String reason);
 
     /**
      * Request a unique session ID from the relay.

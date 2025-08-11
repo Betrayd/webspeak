@@ -58,7 +58,7 @@ public class RelayBackend implements ServerBackend, Session.Listener.AutoDemandi
     }
 
     @Override
-    public CompletableFuture<?> disconnectClient(String sessionId, String reason) {
+    public CompletableFuture<?> disconnectClient(String sessionId, int statusCode, String reason) {
         if (relaySession == null)
             throw getNoSession();
 
@@ -66,7 +66,7 @@ public class RelayBackend implements ServerBackend, Session.Listener.AutoDemandi
         var future = new Callback.Completable();
         relaySession.sendText(";" + RelayMessages.write(message), future);
 
-        future.thenRun(() -> onClientDisconnected.invoke(new ClientDisconnectEvent(sessionId, DisconnectReason.SERVER_DISCONNECT)));
+        future.thenRun(() -> onClientDisconnected.invoke(new ClientDisconnectEvent(sessionId, statusCode, reason)));
 
         return future;
     }
@@ -201,7 +201,7 @@ public class RelayBackend implements ServerBackend, Session.Listener.AutoDemandi
 
     // TODO: There's a chance the relay will also send this packet when the server initiates the close.
     private void handleCloseClient(RelayMessages.R2SClosedClient msg) {
-        onClientDisconnected.invoke(new ClientDisconnectEvent(msg.id(), DisconnectReason.CLIENT_DISCONNECT));
+        onClientDisconnected.invoke(new ClientDisconnectEvent(msg.id(), msg.statusCode(), msg.reason()));
     }
 
     private void handleReturnSessionId(RelayMessages.R2SReturnSessionId msg) {
