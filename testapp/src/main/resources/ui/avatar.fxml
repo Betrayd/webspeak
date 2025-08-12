@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.Group?>
+<?import javafx.scene.paint.Color?>
+<?import javafx.scene.shape.Circle?>
+
+<Group fx:id="root" onMouseDragged="#onMouseDragged" onMousePressed="#onMousePressed" xmlns="http://javafx.com/javafx/21.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="net.betrayd.webspeak.testapp.ui.PlayerAvatarController">
+   <children>
+      <Group id="_root" fx:id="innerRoot" translateX="-16.0" translateY="-16.0" xmlns:fxsvg="http://efxclipse.org/fxml-svg">
+      	<children>
+      		<Circle id="Body" fx:id="fillCircle" centerX="16.0" centerY="16.0" opacity="1" radius="15.219" strokeWidth="0.5">
+      			<fill>
+      				<Color>
+      					<red>0.788235294117647</red>
+      					<green>0.0</green>
+      					<blue>0.0</blue>
+      				</Color>
+      			</fill>
+      			<stroke>
+      				<Color>
+      					<red>0.0</red>
+      					<green>0.0</green>
+      					<blue>0.0</blue>
+      				</Color>
+      			</stroke>
+      			
+      		</Circle>
+      		<Group id="Eye" opacity="1.0">
+      			<children>
+      				<Circle centerX="10.75" centerY="9.531" opacity="1" radius="3.719" strokeWidth="0.06">
+      					<fill>
+      						<Color>
+      							<red>1.0</red>
+      							<green>1.0</green>
+      							<blue>1.0</blue>
+      						</Color>
+      					</fill>
+      					<stroke>
+      						<Color>
+      							<red>0.0</red>
+      							<green>0.0</green>
+      							<blue>0.0</blue>
+      						</Color>
+      					</stroke>
+      					
+      				</Circle>
+      				<Circle centerX="10.75" centerY="8.858" opacity="1" radius="2.14">
+      					<fill>
+      						<Color>
+      							<red>0.2196078431372549</red>
+      							<green>0.2196078431372549</green>
+      							<blue>0.2196078431372549</blue>
+      						</Color>
+      					</fill>
+      					
+      				</Circle>
+      			</children>
+      		</Group>
+      		<Group id="Eye1" opacity="1.0">
+      			<children>
+      				<Circle centerX="21.25" centerY="9.531" opacity="1" radius="3.719" strokeWidth="0.06">
+      					<fill>
+      						<Color>
+      							<red>1.0</red>
+      							<green>1.0</green>
+      							<blue>1.0</blue>
+      						</Color>
+      					</fill>
+      					<stroke>
+      						<Color>
+      							<red>0.0</red>
+      							<green>0.0</green>
+      							<blue>0.0</blue>
+      						</Color>
+      					</stroke>
+      					
+      				</Circle>
+      				<Circle centerX="21.25" centerY="8.858" opacity="1" radius="2.14">
+      					<fill>
+      						<Color>
+      							<red>0.2196078431372549</red>
+      							<green>0.2196078431372549</green>
+      							<blue>0.2196078431372549</blue>
+      						</Color>
+      					</fill>
+      					
+      				</Circle>
+      			</children>
+      		</Group>
+      	</children>
+      </Group>
+   </children>
+</Group>

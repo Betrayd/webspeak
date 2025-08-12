@@ -1,12 +1,12 @@
-module net.betrayd.webspeak.testapp {
+module webspeak.testapp.main {
+    requires static lombok;
     requires javafx.controls;
     requires javafx.fxml;
+    requires javafx.graphics;
     requires net.betrayd.webspeak;
-    requires org.slf4j;
     requires org.jetbrains.annotations;
-    requires static lombok;
+    requires org.slf4j;
 
-
-    opens net.betrayd.webspeak.testapp to javafx.fxml;
-    exports net.betrayd.webspeak.testapp;
+    exports net.betrayd.webspeak.testapp.ui to javafx.fxml;
+    exports net.betrayd.webspeak.testapp.ui.util to javafx.fxml;
 }

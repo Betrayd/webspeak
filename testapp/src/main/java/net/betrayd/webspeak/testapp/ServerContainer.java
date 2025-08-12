@@ -61,6 +61,7 @@ public class ServerContainer {
         WebSpeakRelay.openRelayConnection(config).whenComplete((backend, ex) -> {
             if (ex != null) {
                 onError.invoke(ex);
+                LOGGER.error("Error starting webspeak: ", ex);
                 shutdownQueued = true;
                 startupFuture.completeExceptionally(ex);
             } else {
