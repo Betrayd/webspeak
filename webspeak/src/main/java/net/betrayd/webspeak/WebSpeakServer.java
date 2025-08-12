@@ -14,8 +14,15 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 
 /**
- * The main server for WebSpeak. Responsible for keeping track of players, managing coordinate updates,
- * and facilitating everything else that WebSpeak needs to do.
+ * <p>The main server responsible for WebSpeak. While it doesn't handle in-band or out-of-band communications directly,
+ * <code>WebSpeakServer</code> is responsible for coordinating everything that WebSpeakUses.</p>
+ *
+ * <p>The server has no "startup" sequence in its lifecycle. Because the only required initialization code involved is
+ * connecting to the relay (or any other measures used to listen for connections), it's assumed that the
+ * <code>ServerBackend</code> that's passed in the constructor has already finished initializing.</p>
+ *
+ * <p>It <em>does</em>, however, have a shutdown sequence. Calling {@link #stop()} will initiate this sequence,
+ * where all players will be gracefully disconnected and the backend will be closed. This might happen asynchronously.</p>
  */
 public class WebSpeakServer implements Executor {
 
@@ -49,14 +56,19 @@ public class WebSpeakServer implements Executor {
     private final Event.Invokable<PlayerEvent> onPlayerAdded = Event.create();
     private final Event.Invokable<PlayerEvent> onPlayerRemoved = Event.create();
 
+    private final Event.Invokable<WebSpeakServer> onStop = Event.create();
+
     private final BiMap<String, WebSpeakPlayer> players = Maps.synchronizedBiMap(HashBiMap.create());
     private final BiMap<String, WebSpeakPlayer> playersUnmod = Maps.unmodifiableBiMap(players);
 
     private final BiMap<String, AudioSource3D> audioSources = Maps.synchronizedBiMap(HashBiMap.create());
     private final BiMap<String, AudioSource3D> audioSourcesUnmod = Maps.unmodifiableBiMap(audioSources);
 
+    private final CompletableFuture<?> shutdownFuture = new CompletableFuture<>();
+
     public WebSpeakServer(@NotNull ServerBackend serverBackend) {
         this.serverBackend = serverBackend;
+        serverBackend.getOnClose().addListener(this::onStop);
     }
 
     public Event<WebSpeakServer> getOnStartTick() {
@@ -81,6 +93,10 @@ public class WebSpeakServer implements Executor {
 
     public Event<PlayerEvent> getOnPlayerRemoved() {
         return onPlayerRemoved;
+    }
+
+    public Event<WebSpeakServer> getOnStop() {
+        return onStop;
     }
 
     /**
@@ -108,7 +124,7 @@ public class WebSpeakServer implements Executor {
      * @param audioId     ID to assign the audio source.
      * @return <code>true</code> if the source was added. <code>false</code> if a source already exists with that ID.
      */
-    public boolean addAudioSource(@NonNull AudioSource3D audioSource, @NonNull String audioId) {
+    public synchronized boolean addAudioSource(@NonNull AudioSource3D audioSource, @NonNull String audioId) {
         if (audioSources.putIfAbsent(audioId, audioSource) == null) {
             onAudioSourceAdded.invoke(new AudioSourceEvent(audioSource, audioId));
             return true;
@@ -122,7 +138,7 @@ public class WebSpeakServer implements Executor {
      * @param audioId ID of the audio source to remove.
      * @return The audio source that belonged to that ID; <code>null</code> if there was no audio source with that ID.
      */
-    public @Nullable AudioSource3D removeAudioSource(String audioId) {
+    public synchronized @Nullable AudioSource3D removeAudioSource(String audioId) {
         var result = audioSources.remove(audioId);
         if (result != null) {
             onAudioSourceRemoved.invoke(new AudioSourceEvent(result, audioId));
@@ -136,7 +152,7 @@ public class WebSpeakServer implements Executor {
      * @param audioSource Audio source to remove.
      * @return The ID the audio source had; <code>null</code> if it was not in this server.
      */
-    public @Nullable String removeAudioSource(AudioSource3D audioSource) {
+    public synchronized @Nullable String removeAudioSource(AudioSource3D audioSource) {
         var id = audioSources.inverse().remove(audioSource);
         if (id != null) {
             onAudioSourceRemoved.invoke(new AudioSourceEvent(audioSource, id));
@@ -152,7 +168,7 @@ public class WebSpeakServer implements Executor {
      * @return <code>true</code> if the player was added. <code>false</code> if the session ID was already in use.
      * @throws IllegalArgumentException If the player belongs to the wrong server.
      */
-    public boolean addPlayer(@NonNull WebSpeakPlayer player, @NonNull String sessionId) throws IllegalArgumentException {
+    public synchronized boolean addPlayer(@NonNull WebSpeakPlayer player, @NonNull String sessionId) throws IllegalArgumentException {
         if (player.getServer() != this) {
             throw new IllegalArgumentException("Player belongs to the wrong server!");
         }
@@ -168,7 +184,7 @@ public class WebSpeakServer implements Executor {
      * @param player Player to add.
      * @return A future that completes with the session ID once the player is added.
      */
-    public CompletableFuture<String> addPlayer(WebSpeakPlayer player) {
+    public synchronized CompletableFuture<String> addPlayer(WebSpeakPlayer player) {
         if (player.getServer() != this) {
             throw new IllegalArgumentException("Player belongs to the wrong server!");
         }
@@ -187,10 +203,10 @@ public class WebSpeakServer implements Executor {
      * @param sessionId Session ID of the player to remove.
      * @return The player that belonged to that ID; <code>null</code> if there was no player with that ID.
      */
-    public @Nullable WebSpeakPlayer removePlayer(String sessionId) {
+    public synchronized @Nullable WebSpeakPlayer removePlayer(String sessionId, String reason) {
         var player = players.remove(sessionId);
         if (player != null) {
-            handleRemovedPlayer(player, sessionId);
+            handleRemovedPlayer(player, sessionId, reason);
         }
         return player;
     }
@@ -201,16 +217,16 @@ public class WebSpeakServer implements Executor {
      * @param player Player to remove.
      * @return The ID the player had; <code>null</code> if it was not in this server.
      */
-    public @Nullable String removePlayer(WebSpeakPlayer player) {
+    public synchronized @Nullable String removePlayer(WebSpeakPlayer player, String reason) {
         var id = players.inverse().remove(player);
         if (id != null) {
-            handleRemovedPlayer(player, id);
+            handleRemovedPlayer(player, id, reason);
         }
         return id;
     }
 
-    private void handleRemovedPlayer(WebSpeakPlayer player, String sessionId) {
-        serverBackend.releaseSessionId(sessionId, "Player removed from server.");
+    private void handleRemovedPlayer(WebSpeakPlayer player, String sessionId, String reason) {
+        serverBackend.releaseSessionId(sessionId, reason);
         onPlayerRemoved.invoke(new PlayerEvent(player, sessionId));
     }
 
@@ -242,5 +258,24 @@ public class WebSpeakServer implements Executor {
             command.run();
         else
             tasks.add(command);
+    }
+
+    /**
+     * Stop the server.
+     */
+    public final synchronized CompletableFuture<?> stop() {
+        // Event listener registered in constructor will call onStop
+        serverBackend.close();
+        return shutdownFuture;
+    }
+
+    /**
+     * Called when the server backend has closed.
+     * @param reason Reason the server was closed.
+     */
+    protected void onStop(String reason) {
+        // TODO: close logic
+        onStop.invoke(this);
+        shutdownFuture.complete(null);
     }
 }
