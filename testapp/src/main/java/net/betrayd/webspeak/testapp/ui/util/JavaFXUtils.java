@@ -17,7 +17,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Map;
 
 public class JavaFXUtils {
-    private static record ColorSizeKey(Color lineColor, Double size) {};
+    private record ColorSizeKey(Color lineColor, Double size) {};
 
     private static final Map<ColorSizeKey, Image> gridImages = new MapMaker().weakValues().makeMap();
 

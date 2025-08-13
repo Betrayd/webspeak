@@ -21,7 +21,7 @@
     </MenuBar>
    <BorderPane prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS">
       <center>
-         <ZoomableGraph BorderPane.alignment="CENTER" />
+         <ZoomableGraph fx:id="graph" BorderPane.alignment="CENTER" />
       </center>
    </BorderPane>
 </VBox>
