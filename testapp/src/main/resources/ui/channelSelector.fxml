@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.RadioButton?>
+<?import javafx.scene.layout.VBox?>
+
+<VBox fx:id="root" maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" spacing="5.0" xmlns="http://javafx.com/javafx/21.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="net.betrayd.webspeaktest.ui.ChannelSelectorController">
+   <children>
+      <RadioButton mnemonicParsing="false" text="Channel 1" />
+      <RadioButton mnemonicParsing="false" text="Channel 2" />
+      <RadioButton mnemonicParsing="false" text="Channel 3" />
+   </children>
+</VBox>

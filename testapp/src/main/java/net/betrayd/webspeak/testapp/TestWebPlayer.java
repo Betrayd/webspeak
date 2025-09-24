@@ -15,6 +15,7 @@ public class TestWebPlayer extends WebSpeakPlayer {
     public TestWebPlayer(WebSpeakServer server, Player player) {
         super(server);
         this.player = player;
+        player.webPlayerProperty.set(this);
     }
 
     @Override

@@ -82,14 +82,14 @@ public class PlayerAvatarController {
 
         root.viewOrderProperty().bind(Bindings.createIntegerBinding(() -> selectedProperty.get() ? -1: 0, selectedProperty));
 
-        // I really should be using CSS for this, but this is a test app so I don't
-        // care.
+        // I really should be using CSS for this, but this is a test app so I don't care.
+        //seems wrong but I had to move it here from the function for no infinite growth
+        oldStrokeWidth = fillCircle.getStrokeWidth();
         selectedProperty.addListener((prop, oldVal, newVal) -> {
             if (oldVal.equals(newVal))
                 return;
             if (newVal) {
                 fillCircle.setStroke(Color.BLUE);
-                oldStrokeWidth = fillCircle.getStrokeWidth();
                 fillCircle.setStrokeWidth(oldStrokeWidth * 4);
             } else {
                 fillCircle.setStroke(Color.BLACK);

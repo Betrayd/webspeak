@@ -1,12 +1,14 @@
 package net.betrayd.webspeak.testapp;
 
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.beans.property.*;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 import lombok.Getter;
+import net.betrayd.webspeak.WebSpeakServer;
 import net.betrayd.webspeak.event.Event;
 import net.betrayd.webspeak.testapp.ui.MainUIController;
 import org.jetbrains.annotations.Nullable;
@@ -16,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 public class WebSpeakTestApp extends Application {
 
@@ -28,6 +31,7 @@ public class WebSpeakTestApp extends Application {
     @Getter
     private static WebSpeakTestApp instance;
 
+    //TODO: this is stupid since we already have these events on the server, but I just want to get it running for now so I'm not screwing with it
     private final Event.Invokable<Player> addPlayerEvent = Event.create();
     private final Event.Invokable<Player> removePlayerEvent = Event.create();
 
@@ -74,15 +78,14 @@ public class WebSpeakTestApp extends Application {
         return playersUnmod;
     }
 
-    public boolean addPlayer(Player player) {
+    public void addPlayer(Player player) {
         if (players.add(player)) {
             if (isServerRunning()) {
-                // TODO: add to server
+                TestWebPlayer webPlayer = new TestWebPlayer(server.get().getServer(), player);
+                server.get().getServer().addPlayer(webPlayer)
+                        .thenAcceptAsync((a) -> addPlayerEvent.invoke(player), Platform::runLater);
             }
-            addPlayerEvent.invoke(player);
-            return true;
         }
-        return false;
     }
 
     public boolean removePlayer(Object player) {
@@ -91,7 +94,9 @@ public class WebSpeakTestApp extends Application {
 
         if (players.remove(p)) {
             if (isServerRunning()) {
-                // TODO: remove from server
+                if(p.webPlayerProperty.get() != null){
+                    server.get().getServer().removePlayer(p.webPlayerProperty.get(), "Removed from server");
+                }
             }
             removePlayerEvent.invoke(p);
             return true;
@@ -100,7 +105,7 @@ public class WebSpeakTestApp extends Application {
     }
 
     public boolean isServerRunning() {
-        return server.get() != null;
+        return server.get() != null;// && server.get().getServer() != null && server.get().getServer().isRunning();
     }
 
     @Override
@@ -111,8 +116,42 @@ public class WebSpeakTestApp extends Application {
         Parent root = loader.load();
         mainUIController = loader.getController();
 
+        mainUIController.initApp(this);
+
         Scene scene = new Scene(root);
         primaryStage.setScene(scene);
         primaryStage.show();
+    }
+
+    public CompletableFuture<?> stopServer() {
+        LOGGER.info("Stopping server");
+        if (!isServerRunning()) {
+            LOGGER.error("Server is not running!");
+        } else if (server.get().getServer() != null) {
+            WebSpeakServer pastServer = server.get().getServer();
+            server.set(null);
+            return pastServer.stop();
+        } else {
+            LOGGER.error("No server in server container");
+        }
+        return CompletableFuture.completedFuture(null);
+    }
+
+    public CompletableFuture<WebSpeakServer> startServer() {
+        LOGGER.info("Starting server");
+        if (isServerRunning()) {
+            LOGGER.error("Server is already running!");
+            return null;
+        }
+        server.set(new ServerContainer());
+        CompletableFuture<WebSpeakServer> returnValue = server.get().start();
+        returnValue.thenAccept(server -> {
+            LOGGER.info("Started server successfully");
+            mainUIController.onStartServer(server);
+        }).exceptionally(e -> {
+            server.set(null);
+            return null;
+        });
+        return returnValue;
     }
 }

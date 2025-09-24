@@ -8,6 +8,7 @@ import lombok.NonNull;
 import net.betrayd.webspeak.event.Event;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -69,6 +70,13 @@ public class WebSpeakServer implements Executor {
     public WebSpeakServer(@NotNull ServerBackend serverBackend) {
         this.serverBackend = serverBackend;
         serverBackend.getOnClose().addListener(this::onStop);
+    }
+
+    /**
+     * @return if this WebSpeakServer is currently running
+     */
+    public boolean isRunning(){
+        return serverBackend.isOpen();
     }
 
     public Event<WebSpeakServer> getOnStartTick() {
@@ -172,7 +180,7 @@ public class WebSpeakServer implements Executor {
         if (player.getServer() != this) {
             throw new IllegalArgumentException("Player belongs to the wrong server!");
         }
-        if (players.putIfAbsent(sessionId, player) != null) {
+        if (players.putIfAbsent(sessionId, player) == null) {
             onPlayerAdded.invoke(new PlayerEvent(player, sessionId));
             return true;
         }

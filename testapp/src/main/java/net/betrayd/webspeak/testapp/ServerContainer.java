@@ -54,7 +54,7 @@ public class ServerContainer {
 
     protected void runThread() {
         WebSpeakRelay.Config config = WebSpeakRelay.Config.builder()
-                .connectionAddress(URI.create("http://localhost:8080"))
+                .connectionAddress(URI.create("ws://localhost:8080"))
                 .build();
 
         LOGGER.info("Starting WebSpeak thread");

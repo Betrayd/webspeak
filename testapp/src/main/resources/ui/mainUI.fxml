@@ -1,12 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
+<?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Menu?>
 <?import javafx.scene.control.MenuBar?>
 <?import javafx.scene.control.MenuItem?>
 <?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.control.TextField?>
 <?import javafx.scene.layout.VBox?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.shape.Circle?>
+<?import javafx.scene.text.Font?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
 <?import net.betrayd.webspeak.testapp.ui.util.ZoomableGraph?>
 
+<?import javafx.scene.control.ScrollPane?>
 <VBox maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="720.0" prefWidth="1280.0" xmlns="http://javafx.com/javafx/21.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="net.betrayd.webspeak.testapp.ui.MainUIController">
     <MenuBar>
         <Menu mnemonicParsing="false" text="File">
@@ -23,5 +31,54 @@
       <center>
          <ZoomableGraph fx:id="graph" BorderPane.alignment="CENTER" />
       </center>
+       <right>
+           <VBox alignment="TOP_RIGHT" BorderPane.alignment="CENTER">
+               <children>
+                   <ScrollPane fitToHeight="true" fitToWidth="true" focusTraversable="false" hbarPolicy="NEVER" minWidth="-Infinity" styleClass="player-list" VBox.vgrow="ALWAYS">
+                       <content>
+                           <VBox fx:id="playerBox" prefWidth="325.0">
+                               <children>
+                                   <fx:include source="playerInfo.fxml" />
+                                   <fx:include source="playerInfo.fxml" />
+                               </children>
+                           </VBox>
+                       </content>
+                   </ScrollPane>
+                   <Button mnemonicParsing="false" onAction="#addPlayer" text="Add Player">
+                       <VBox.margin>
+                           <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
+                       </VBox.margin>
+                   </Button>
+               </children>
+           </VBox>
+       </right>
+       <bottom>
+           <HBox alignment="CENTER_LEFT" spacing="10.0" BorderPane.alignment="CENTER">
+               <children>
+                   <HBox alignment="CENTER_LEFT" spacing="10.0">
+                       <children>
+                           <Circle fx:id="serverStatusIcon" fill="RED" radius="12.0" stroke="#0000006c" strokeType="INSIDE" />
+                           <Label fx:id="serverStatusText" text="Server Stopped">
+                               <font>
+                                   <Font size="16.0" />
+                               </font>
+                           </Label>
+                           <Label fx:id="serverAddressText" text="localhost:8080" textFill="#006f12" />
+                       </children>
+                   </HBox>
+                   <HBox alignment="CENTER_RIGHT" spacing="10.0" HBox.hgrow="ALWAYS">
+                       <children>
+                           <Label text="Player Connection Address:" />
+                           <TextField fx:id="frontendPortField" prefWidth="64.0" promptText="Port" text="5173" />
+                           <TextField fx:id="connectionAddressField" editable="false" maxWidth="620.0" promptText="Please select a player" HBox.hgrow="ALWAYS" />
+                           <Button fx:id="startStopButton" mnemonicParsing="false" onAction="#pressStartStopButton" text="Start Server" />
+                       </children>
+                   </HBox>
+               </children>
+               <BorderPane.margin>
+                   <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
+               </BorderPane.margin>
+           </HBox>
+       </bottom>
    </BorderPane>
 </VBox>

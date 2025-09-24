@@ -37,7 +37,7 @@ public final class WebSpeakRelay {
     public static CompletableFuture<ServerBackend> openRelayConnection(Config config, WebSocketClient wsClient) {
         RelayBackend backend = new RelayBackend(config);
         try {
-            return wsClient.connect(backend, config.getConnectionAddress()).thenApply(s -> (ServerBackend) s)
+            return wsClient.connect(backend, config.getConnectionAddress().resolve("host")).thenApply(s -> (ServerBackend)backend)
                     .orTimeout(config.timeout, TimeUnit.MILLISECONDS);
         } catch (IOException e) {
             return CompletableFuture.failedFuture(e);
@@ -45,6 +45,13 @@ public final class WebSpeakRelay {
     }
 
     public static CompletableFuture<ServerBackend> openRelayConnection(Config config) {
-        return openRelayConnection(config, new WebSocketClient());
+        WebSocketClient client = new WebSocketClient();
+        try{
+            client.start();
+        }
+        catch(Exception e){
+            return CompletableFuture.failedFuture(e);
+        }
+        return openRelayConnection(config, client);
     }
 }
