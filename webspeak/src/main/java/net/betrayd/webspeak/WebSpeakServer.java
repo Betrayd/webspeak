@@ -247,6 +247,8 @@ public class WebSpeakServer implements Executor {
 
         onStartTick.invoke(this);
 
+        serverBackend.tick();
+
         Runnable command;
         while ((command = tasks.poll()) != null) {
             command.run();

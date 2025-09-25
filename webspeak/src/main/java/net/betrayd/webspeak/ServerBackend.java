@@ -48,6 +48,11 @@ public interface ServerBackend {
     CompletableFuture<String> requestSessionId();
 
     /**
+     * ticks the backend, in order to do events like send keep alives, etc.
+     */
+    void tick();
+
+    /**
      * Indicate to the relay that a session ID is no-longer in use. Also disconnects any connected client.
      *
      * @param sessionId The session ID to release.

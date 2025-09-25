@@ -6,6 +6,7 @@ import lombok.Getter;
 import net.betrayd.webspeak.ServerBackend;
 import net.betrayd.webspeak.WebSpeakRelay;
 import net.betrayd.webspeak.event.Event;
+import org.eclipse.jetty.util.NanoTime;
 import org.eclipse.jetty.websocket.api.Callback;
 import org.eclipse.jetty.websocket.api.Session;
 import org.jetbrains.annotations.Nullable;
@@ -52,6 +53,17 @@ public class RelayBackend implements ServerBackend, Session.Listener.AutoDemandi
         var future = new Callback.Completable();
         relaySession.close(1001, "Server closed", future);
         return future;
+    }
+
+    private int keepAliveMillis = 1000;
+    private long keepAlive = System.currentTimeMillis();
+    @Override
+    public void tick(){
+        if(relaySession != null && relaySession.isOpen()){
+            if(System.currentTimeMillis() - keepAlive >= keepAliveMillis){
+                relaySession.sendPing(ByteBuffer.wrap("keep-alive".getBytes()), Callback.NOOP);
+            }
+        }
     }
 
     @Override
