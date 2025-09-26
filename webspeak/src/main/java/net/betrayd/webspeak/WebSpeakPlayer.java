@@ -1,6 +1,8 @@
 package net.betrayd.webspeak;
 
+import dev.onvoid.webrtc.RTCPeerConnection;
 import lombok.Getter;
+import net.betrayd.webspeak.webrtc.RTCClientConnection;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -13,6 +15,9 @@ public abstract class WebSpeakPlayer implements AudioSource3D {
      */
     @Getter
     private final WebSpeakServer server;
+
+    @Nullable
+    private RTCClientConnection rtcConnection;
 
     public WebSpeakPlayer(WebSpeakServer server) {
         this.server = server;

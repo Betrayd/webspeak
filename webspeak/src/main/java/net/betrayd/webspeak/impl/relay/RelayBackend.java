@@ -55,6 +55,7 @@ public class RelayBackend implements ServerBackend, Session.Listener.AutoDemandi
         return future;
     }
 
+    //TODO: add to the relay config
     private int keepAliveMillis = 1000;
     private long keepAlive = System.currentTimeMillis();
     @Override
@@ -62,6 +63,7 @@ public class RelayBackend implements ServerBackend, Session.Listener.AutoDemandi
         if(relaySession != null && relaySession.isOpen()){
             if(System.currentTimeMillis() - keepAlive >= keepAliveMillis){
                 relaySession.sendPing(ByteBuffer.wrap("keep-alive".getBytes()), Callback.NOOP);
+                keepAlive = System.currentTimeMillis();
             }
         }
     }

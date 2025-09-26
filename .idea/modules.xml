@@ -2,8 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/testapp/webspeak.testapp.main.iml" filepath="$PROJECT_DIR$/.idea/modules/testapp/webspeak.testapp.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/webspeak/webspeak.webspeak.main.iml" filepath="$PROJECT_DIR$/.idea/modules/webspeak/webspeak.webspeak.main.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/webspeak/webspeak.webspeak.test.iml" filepath="$PROJECT_DIR$/.idea/modules/webspeak/webspeak.webspeak.test.iml" />
     </modules>
   </component>
 </project>
