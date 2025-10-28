@@ -1,6 +1,5 @@
 package net.betrayd.webspeak.webrtc;
 import dev.onvoid.webrtc.*;
-import dev.onvoid.webrtc.media.audio.HeadlessAudioDeviceModule;
 import net.betrayd.webspeak.ServerBackend;
 import net.betrayd.webspeak.WebSpeakServer;
 import org.slf4j.Logger;

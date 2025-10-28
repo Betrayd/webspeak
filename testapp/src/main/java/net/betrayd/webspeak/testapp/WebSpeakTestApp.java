@@ -149,7 +149,7 @@ public class WebSpeakTestApp extends Application {
             LOGGER.info("Started server successfully");
             mainUIController.onStartServer(server);
         }).exceptionally(e -> {
-            LOGGER.warn("AHHHHHHHHHHHH");
+            LOGGER.error("Server could not start", e);
             server.set(null);
             return null;
         });

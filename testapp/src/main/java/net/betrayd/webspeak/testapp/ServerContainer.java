@@ -63,21 +63,20 @@ public class ServerContainer {
                 .build();
 
         LOGGER.info("Starting WebSpeak thread");
-        WebSpeakRelay.openRelayConnection(config).whenComplete((backend, ex) -> {
-            if (ex != null) {
-                onError.invoke(ex);
-                LOGGER.error("Error starting webspeak: ", ex);
-                shutdownQueued = true;
-                startupFuture.completeExceptionally(ex);
-            } else {
+        WebSpeakRelay.openRelayConnection(config).thenAccept(backend -> {
                 LOGGER.info("Established connection to relay");
                 server = new WebSpeakServer(backend);
                 LOGGER.info("server {}", server);
                 server.getOnStop().addListener(v -> shutdownFuture.complete(null));
 
                 startupFuture.complete(this.server);
-            }
-        });
+            }).exceptionally((ex) -> {
+                onError.invoke(ex);
+                LOGGER.error("Error starting webspeak: ", ex);
+                shutdownQueued = true;
+                startupFuture.completeExceptionally(ex);
+                return null;
+            });
 
         while (!shutdownQueued) {
             tick();
@@ -91,7 +90,6 @@ public class ServerContainer {
     }
 
     private void tick() {
-        LOGGER.info("tick {}", server);
         if (server != null) {
             server.tick();
         }

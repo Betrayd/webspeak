@@ -40,6 +40,9 @@ dependencies {
 
     implementation project(':webspeak')
 
+    //single platform cause it HATES ME
+    implementation group: "dev.onvoid.webrtc", name: "webrtc-java", version: "0.14.0", classifier: "windows-x86_64"
+
     implementation 'org.slf4j:slf4j-simple:2.0.16'
     implementation 'com.google.guava:guava:32.1.2-jre'
 }
