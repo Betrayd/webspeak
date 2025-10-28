@@ -4,12 +4,17 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import dev.onvoid.webrtc.*;
 import net.betrayd.webspeak.ServerBackend;
+import net.betrayd.webspeak.event.Event;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Handles the RTC connection for a single client
  */
+//TODO: add timeout when connecting that causes a fatal error to be called
 public class RTCClientConnection {
     private static final Logger LOGGER = LoggerFactory.getLogger(RTCClientConnection.class);
 
@@ -17,7 +22,17 @@ public class RTCClientConnection {
     private final RTCPeerConnection peerConnection;
     private final ServerBackend serverBackend;
 
+    private final Event.Invokable<String> joinEvent = Event.create();
+    //TODO: make possible to get from implementation of library
+    private final Event.Invokable<RTCErrorEvent> onError = Event.create();
+    private final Event.Invokable<RTCDataChannelBuffer> onMessage = Event.create();
+
     private static final Gson GSON = new Gson();
+
+    private final RTCDataChannel reliableDataChannel;
+    private final RTCDataChannel unreliableDataChannel;
+
+    int connect = 0;
 
     protected RTCClientConnection(String sessionID, PeerConnectionFactory factory, RTCConfiguration config, ServerBackend serverBackend){
         this.sessionID = sessionID;
@@ -32,11 +47,13 @@ public class RTCClientConnection {
                             serverBackend.sendMessage(RTCClientConnection.this.sessionID, RTCSignalingMessages.write(contents)).whenComplete((s, e)->{
                                 if(e!=null){
                                     LOGGER.error("{} - Failed to send iceCandidates", RTCClientConnection.this.sessionID, e);
+                                    onError.invoke(new RTCErrorEvent(e,true));
                                 }
                             });
                         }
                         catch(Exception e){
                             LOGGER.error("{} - Failed to send iceCandidates", RTCClientConnection.this.sessionID, e);
+                            onError.invoke(new RTCErrorEvent(e,true));
                         }
                     }
                 }
@@ -48,7 +65,22 @@ public class RTCClientConnection {
             }
         });
 
-        init();
+        RTCDataChannelInit reliableDataChannel = new RTCDataChannelInit();
+
+        reliableDataChannel.id = 0;
+        reliableDataChannel.priority = RTCPriorityType.HIGH;
+
+        RTCDataChannelInit unreliableDataChannel = new RTCDataChannelInit();
+
+        unreliableDataChannel.ordered = false;  // Messages will be delivered in order
+        unreliableDataChannel.maxRetransmits = 0; // Don't retransmit
+        unreliableDataChannel.id = 1;
+
+        this.reliableDataChannel = peerConnection.createDataChannel("data-reliable", reliableDataChannel);
+        this.unreliableDataChannel = peerConnection.createDataChannel("data-unreliable", unreliableDataChannel);
+
+        this.reliableDataChannel.registerObserver(getObserver(this.reliableDataChannel));
+        this.unreliableDataChannel.registerObserver(getObserver(this.unreliableDataChannel));
     }
 
     protected void init(){
@@ -67,17 +99,20 @@ public class RTCClientConnection {
                             serverBackend.sendMessage(sessionID, RTCSignalingMessages.write(contents)).whenComplete((s, e)->{
                                 if(e!=null){
                                     LOGGER.error("Failed to send sessionDescription", e);
+                                    onError.invoke(new RTCErrorEvent(e,true));
                                 }
                             });
                         }
                         catch(Exception e){
                             LOGGER.error("Failed to send sessionDescription", e);
+                            onError.invoke(new RTCErrorEvent(e, true));
                         }
                     }
 
                     @Override
                     public void onFailure(String error) {
                         LOGGER.error("Failed to set local description: {}", error);
+                        onError.invoke(new RTCErrorEvent(new RTCConnecctionError(error),true));
                     }
                 });
             }
@@ -85,6 +120,7 @@ public class RTCClientConnection {
             @Override
             public void onFailure(String error) {
                 LOGGER.error("Failed to create offer: {}", error);
+                onError.invoke(new RTCErrorEvent(new RTCConnecctionError(error), true));
             }
         });
     }
@@ -103,8 +139,17 @@ public class RTCClientConnection {
                     handleReceivedIceCandidate(GSON.fromJson(obj, RTCSignalingMessages.iceCandidate.class));
             case RTCSignalingMessages.sessionDescription.TYPE ->
                     handleReceivedSessionDescription(GSON.fromJson(obj, RTCSignalingMessages.sessionDescription.class));
-            default -> LOGGER.warn("{} - Unknown signaling message type: {}", sessionID, type);
+            case RTCSignalingMessages.C2SrequestRTC.TYPE ->
+                    handleRequestRTC();
+            default -> {
+                LOGGER.warn("{} - Unknown signaling message type: {}", sessionID, type);
+                onError.invoke(new RTCErrorEvent(new RTCConnecctionError("Unknown signaling message type: "+ type), false));
+            }
         }
+    }
+
+    private void handleRequestRTC(){
+        init();
     }
 
     private void handleReceivedIceCandidate(RTCSignalingMessages.iceCandidate message){
@@ -116,6 +161,7 @@ public class RTCClientConnection {
         RTCSdpType value = null;
         if(RTCSdpType.values().length < message.RTCSdpType()){
             LOGGER.warn("{} - Received bad RTCSdpType for session description", sessionID);
+            onError.invoke(new RTCErrorEvent(new RTCConnecctionError("Received bad RTCSdpType for session description"),true));
             return;
         }
         value = RTCSdpType.values()[message.RTCSdpType()];
@@ -129,7 +175,114 @@ public class RTCClientConnection {
             @Override
             public void onFailure(String error) {
                 LOGGER.error("{} - Failed to set remote description: {}", sessionID, error);
+                onError.invoke(new RTCErrorEvent(new RTCConnecctionError("Failed to set remote description" + error), true));
             }
         });
+    }
+
+    private RTCDataChannelObserver getObserver(RTCDataChannel channel){
+        return new RTCDataChannelObserver() {
+            @Override
+            public void onBufferedAmountChange(long previousAmount) {
+                // Called when the buffered amount changes
+                //we currently do not care about buffered data since these are packet channels
+            }
+
+            @Override
+            public void onStateChange() {
+                // Called when the data channel state changes
+                RTCDataChannelState state = channel.getState();
+
+                // Handle different states
+                switch (state) {
+                    case CONNECTING:
+                        LOGGER.info("Data channel with {} is being established", sessionID);
+                        break;
+                    case OPEN:
+                        LOGGER.info("Data channel with {} is open and ready to use", sessionID);
+
+                        connect++;
+                        if(connect == 2){
+                            joinEvent.invoke(sessionID);
+                        }
+                        break;
+                    case CLOSING:
+                        LOGGER.info("Data channel with {} is being closed", sessionID);
+                        break;
+                    case CLOSED:
+                        LOGGER.info("Data channel with {} is closed", sessionID);
+                        break;
+                }
+            }
+
+            @Override
+            public void onMessage(RTCDataChannelBuffer buffer) {
+                // Called when a message is received
+                // IMPORTANT: The buffer data will be freed after this method returns,
+                // so you must copy it if you need to use it asynchronously
+
+                onMessage.invoke(buffer);
+            }
+        };
+    }
+
+
+
+    private boolean send(RTCDataChannel channel, Object data){
+        if (channel.getState() == RTCDataChannelState.OPEN) {
+            if(data instanceof ByteBuffer binary){
+                RTCDataChannelBuffer binaryChannelBuffer = new RTCDataChannelBuffer(binary, true);
+
+                try {
+                    channel.send(binaryChannelBuffer);
+                } catch (Exception e) {
+                    LOGGER.error("Failed to send binary data to session: {}", sessionID, e);
+                }
+                return true;
+            }
+            if(data instanceof String string){
+                ByteBuffer textBuffer = ByteBuffer.wrap(string.getBytes(StandardCharsets.UTF_8));
+                RTCDataChannelBuffer textChannelBuffer = new RTCDataChannelBuffer(textBuffer, false);
+                try {
+                    channel.send(textChannelBuffer);
+                } catch (Exception e) {
+                    LOGGER.error("Failed to send text data to session: {}", sessionID, e);
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean sendBinaryReliable(ByteBuffer binary){
+        return send(reliableDataChannel, binary);
+    }
+
+    public boolean sendBinaryUnreliable(ByteBuffer binary){
+        return send(unreliableDataChannel, binary);
+    }
+
+    public boolean sendStringReliable(String string){
+        return send(reliableDataChannel, string);
+    }
+
+    public boolean sendStringUnreliable(String string){
+        return send(unreliableDataChannel, string);
+    }
+
+    //TODO: implement this to prevent memory leaks
+    public void closeAndCleanup(){
+
+    }
+
+    private record RTCErrorEvent(Throwable error, boolean fatal){
+
+    }
+
+    public static class RTCConnecctionError extends RuntimeException{
+
+        public RTCConnecctionError(String error) {
+            super(error);
+        }
     }
 }

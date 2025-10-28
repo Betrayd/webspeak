@@ -2,7 +2,6 @@ package net.betrayd.webspeak.webrtc;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import dev.onvoid.webrtc.RTCSdpType;
 
 public class RTCSignalingMessages {
     private RTCSignalingMessages() {};
@@ -18,6 +17,15 @@ public class RTCSignalingMessages {
 
     public record sessionDescription(int RTCSdpType, String sdp) implements  RTCSignalingMessage{
         public static final String TYPE = "RTCsessionDescription";
+
+        @Override
+        public String getType() {
+            return TYPE;
+        }
+    }
+
+    public record C2SrequestRTC() implements RTCSignalingMessage{
+        public static final String TYPE = "RTCrequest";
 
         @Override
         public String getType() {
