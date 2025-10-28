@@ -3,6 +3,8 @@ package net.betrayd.webspeak.webrtc;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import dev.onvoid.webrtc.*;
+import dev.onvoid.webrtc.media.MediaStream;
+import dev.onvoid.webrtc.media.MediaStreamTrack;
 import net.betrayd.webspeak.ServerBackend;
 import net.betrayd.webspeak.event.Event;
 import org.slf4j.Logger;
@@ -10,6 +12,10 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Handles the RTC connection for a single client
@@ -34,6 +40,11 @@ public class RTCClientConnection {
 
     int connect = 0;
 
+    private Map<String, RTCRtpSender> audioList = new HashMap<>();
+
+    //TODO: replace this with something abstracted for implementations
+    public MediaStreamTrack micTrack = null;
+
     protected RTCClientConnection(String sessionID, PeerConnectionFactory factory, RTCConfiguration config, ServerBackend serverBackend){
         this.sessionID = sessionID;
         this.serverBackend = serverBackend;
@@ -43,7 +54,7 @@ public class RTCClientConnection {
                     public void onIceCandidate(RTCIceCandidate rtcIceCandidate) {
                         // Send the ICE candidate to the remote peer via your signaling channel
                         try {
-                            RTCSignalingMessages.iceCandidate contents = new RTCSignalingMessages.iceCandidate(rtcIceCandidate.sdpMid, rtcIceCandidate.sdpMLineIndex, rtcIceCandidate.sdp, rtcIceCandidate.serverUrl);
+                            RTCSignalingMessages.iceCandidate contents = new RTCSignalingMessages.iceCandidate(rtcIceCandidate.sdpMid, rtcIceCandidate.sdpMLineIndex, rtcIceCandidate.sdp);
                             serverBackend.sendMessage(RTCClientConnection.this.sessionID, RTCSignalingMessages.write(contents)).whenComplete((s, e)->{
                                 if(e!=null){
                                     LOGGER.error("{} - Failed to send iceCandidates", RTCClientConnection.this.sessionID, e);
@@ -54,6 +65,16 @@ public class RTCClientConnection {
                         catch(Exception e){
                             LOGGER.error("{} - Failed to send iceCandidates", RTCClientConnection.this.sessionID, e);
                             onError.invoke(new RTCErrorEvent(e,true));
+                        }
+                    }
+
+                    @Override
+                    public void onTrack(RTCRtpTransceiver transceiver){
+                        MediaStreamTrack track = transceiver.getReceiver().getTrack();
+                        String kind = track.getKind();
+
+                        if(kind.equals(MediaStreamTrack.AUDIO_TRACK_KIND)){
+                            micTrack = track;
                         }
                     }
                 }
@@ -81,6 +102,8 @@ public class RTCClientConnection {
 
         this.reliableDataChannel.registerObserver(getObserver(this.reliableDataChannel));
         this.unreliableDataChannel.registerObserver(getObserver(this.unreliableDataChannel));
+
+        init();
     }
 
     protected void init(){
@@ -139,8 +162,8 @@ public class RTCClientConnection {
                     handleReceivedIceCandidate(GSON.fromJson(obj, RTCSignalingMessages.iceCandidate.class));
             case RTCSignalingMessages.sessionDescription.TYPE ->
                     handleReceivedSessionDescription(GSON.fromJson(obj, RTCSignalingMessages.sessionDescription.class));
-            case RTCSignalingMessages.C2SrequestRTC.TYPE ->
-                    handleRequestRTC();
+            //case RTCSignalingMessages.C2SrequestRTC.TYPE ->
+            //        handleRequestRTC();
             default -> {
                 LOGGER.warn("{} - Unknown signaling message type: {}", sessionID, type);
                 onError.invoke(new RTCErrorEvent(new RTCConnecctionError("Unknown signaling message type: "+ type), false));
@@ -148,12 +171,12 @@ public class RTCClientConnection {
         }
     }
 
-    private void handleRequestRTC(){
+    /*private void handleRequestRTC(){
         init();
-    }
+    }*/
 
     private void handleReceivedIceCandidate(RTCSignalingMessages.iceCandidate message){
-        RTCIceCandidate candidate = new RTCIceCandidate(message.sdpMid(), message.sdpMLineIndex(), message.sdp(), message.serverUrl());
+        RTCIceCandidate candidate = new RTCIceCandidate(message.sdpMid(), message.sdpMLineIndex(), message.sdp());
         peerConnection.addIceCandidate(candidate);
     }
 
@@ -226,8 +249,19 @@ public class RTCClientConnection {
         };
     }
 
+    public void addTrack(MediaStreamTrack track, String sourceID){
+         audioList.put(sourceID, peerConnection.addTrack(track, List.of(sourceID)));
+    }
 
+    public boolean removeTrack(String sourceID){
+        if(audioList.containsKey(sourceID)){
+            peerConnection.removeTrack(audioList.get(sourceID));
+            return true;
+        }
+        return false;
+    }
 
+    //probably should make all of these sends completable futures since it would match with the relay system, but this is fine for now.
     private boolean send(RTCDataChannel channel, Object data){
         if (channel.getState() == RTCDataChannelState.OPEN) {
             if(data instanceof ByteBuffer binary){

@@ -105,7 +105,7 @@ public class WebSpeakTestApp extends Application {
     }
 
     public boolean isServerRunning() {
-        return server.get() != null;// && server.get().getServer() != null && server.get().getServer().isRunning();
+        return server.get() != null;// && server.get().getServer() != null; && server.get().getServer() != null && server.get().getServer().isRunning();
     }
 
     @Override
@@ -149,6 +149,7 @@ public class WebSpeakTestApp extends Application {
             LOGGER.info("Started server successfully");
             mainUIController.onStartServer(server);
         }).exceptionally(e -> {
+            LOGGER.warn("AHHHHHHHHHHHH");
             server.set(null);
             return null;
         });

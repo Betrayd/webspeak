@@ -3,11 +3,15 @@ package net.betrayd.webspeak;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Maps;
+import dev.onvoid.webrtc.RTCConfiguration;
+import dev.onvoid.webrtc.RTCIceServer;
 import lombok.Getter;
 import lombok.NonNull;
 import net.betrayd.webspeak.event.Event;
+import net.betrayd.webspeak.webrtc.RTCManager;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -43,6 +47,9 @@ public class WebSpeakServer implements Executor {
     @Getter @NonNull
     private final ServerBackend serverBackend;
 
+    @Getter @NonNull
+    private final RTCManager rtcManager;
+
     private volatile boolean inTick;
     private volatile Thread tickThread;
     private final ConcurrentLinkedQueue<Runnable> tasks = new ConcurrentLinkedQueue<>();
@@ -68,6 +75,15 @@ public class WebSpeakServer implements Executor {
 
     public WebSpeakServer(@NotNull ServerBackend serverBackend) {
         this.serverBackend = serverBackend;
+
+        //TODO: add configuration somewhere else
+        RTCConfiguration config = new RTCConfiguration();
+        RTCIceServer iceServer = new RTCIceServer();
+        iceServer.urls.add("stun:stun.l.google.com:19302");
+        config.iceServers.add(iceServer);
+        //Create the RTC manager
+        this.rtcManager = new RTCManager(config, serverBackend, this);
+
         serverBackend.getOnClose().addListener(this::onStop);
     }
 

@@ -8,7 +8,7 @@ public class RTCSignalingMessages {
     public interface RTCSignalingMessage {
         String getType();
     }
-    public record iceCandidate(String sdpMid, int sdpMLineIndex, String sdp, String serverUrl) implements RTCSignalingMessage{
+    public record iceCandidate(String sdpMid, int sdpMLineIndex, String sdp) implements RTCSignalingMessage{
         public static final String TYPE = "RTCiceCandidate";
 
         @Override
@@ -24,14 +24,14 @@ public class RTCSignalingMessages {
         }
     }
 
-    public record C2SrequestRTC() implements RTCSignalingMessage{
-        public static final String TYPE = "RTCrequest";
-
-        @Override
-        public String getType() {
-            return TYPE;
-        }
-    }
+    //public record C2SrequestRTC() implements RTCSignalingMessage{
+    //    public static final String TYPE = "RTCrequest";
+    //
+    //    @Override
+    //    public String getType() {
+    //        return TYPE;
+    //    }
+    //}
 
     private static final Gson GSON = new Gson();
 

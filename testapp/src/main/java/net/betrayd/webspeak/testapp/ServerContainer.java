@@ -19,8 +19,13 @@ public class ServerContainer {
 
     private final Thread thread;
 
-    @Getter @Nullable
+    @Nullable
     private WebSpeakServer server;
+
+    public WebSpeakServer getServer(){
+        LOGGER.info("Getting server: {}", server);
+        return server;
+    }
 
     private volatile boolean shutdownQueued;
 
@@ -67,6 +72,7 @@ public class ServerContainer {
             } else {
                 LOGGER.info("Established connection to relay");
                 server = new WebSpeakServer(backend);
+                LOGGER.info("server {}", server);
                 server.getOnStop().addListener(v -> shutdownFuture.complete(null));
 
                 startupFuture.complete(this.server);
@@ -85,6 +91,7 @@ public class ServerContainer {
     }
 
     private void tick() {
+        LOGGER.info("tick {}", server);
         if (server != null) {
             server.tick();
         }
