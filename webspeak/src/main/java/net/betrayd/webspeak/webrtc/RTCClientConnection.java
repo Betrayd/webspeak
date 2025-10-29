@@ -75,10 +75,6 @@ public class RTCClientConnection {
                             micTrack = track;
                         }
                     }
-
-                    @Override public void onDataChannel(RTCDataChannel dc) {
-                        System.out.println(dc.getId() + ": DataChannel received: " + dc.getLabel());
-                    }
                 }
         );
 
