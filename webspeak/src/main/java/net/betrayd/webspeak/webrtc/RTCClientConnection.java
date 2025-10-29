@@ -3,7 +3,6 @@ package net.betrayd.webspeak.webrtc;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import dev.onvoid.webrtc.*;
-import dev.onvoid.webrtc.media.MediaStream;
 import dev.onvoid.webrtc.media.MediaStreamTrack;
 import net.betrayd.webspeak.ServerBackend;
 import net.betrayd.webspeak.event.Event;
@@ -12,7 +11,6 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -76,6 +74,10 @@ public class RTCClientConnection {
                         if(kind.equals(MediaStreamTrack.AUDIO_TRACK_KIND)){
                             micTrack = track;
                         }
+                    }
+
+                    @Override public void onDataChannel(RTCDataChannel dc) {
+                        System.out.println(dc.getId() + ": DataChannel received: " + dc.getLabel());
                     }
                 }
         );
@@ -176,8 +178,13 @@ public class RTCClientConnection {
     }*/
 
     private void handleReceivedIceCandidate(RTCSignalingMessages.iceCandidate message){
-        RTCIceCandidate candidate = new RTCIceCandidate(message.sdpMid(), message.sdpMLineIndex(), message.sdp());
-        peerConnection.addIceCandidate(candidate);
+        try{
+            RTCIceCandidate candidate = new RTCIceCandidate(message.sdpMid(), message.sdpMLineIndex(), message.sdp());
+            peerConnection.addIceCandidate(candidate);
+        }
+        catch (Throwable e){
+            LOGGER.error("Failed to handle received ice candidates", e);
+        }
     }
 
     private void handleReceivedSessionDescription(RTCSignalingMessages.sessionDescription message){
