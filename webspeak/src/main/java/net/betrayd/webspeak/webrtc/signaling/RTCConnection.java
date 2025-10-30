@@ -2,36 +2,35 @@ package net.betrayd.webspeak.webrtc.signaling;
 
 import dev.onvoid.webrtc.*;
 import lombok.Getter;
-import lombok.NonNull;
+import lombok.Setter;
 import net.betrayd.webspeak.event.Event;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.UUID;
+
 public abstract class RTCConnection {
     private static final Logger LOGGER = LoggerFactory.getLogger(RTCConnection.class);
-    private static int nextIdentifier = 0;
     //Yes this starts on 1, that's on purpose so that if we get 0 it's an error
     //this exposes the number of data channels the server has made to the client, but I really don't think that's a big issue
-    public static int getNextIdentifier(){
-        nextIdentifier++;
-        return nextIdentifier;
+    public static String getNextIdentifier(){
+        return UUID.randomUUID().toString();
     }
 
     private final RTCPeerConnection peerConnection;
-    @Getter @NonNull
-    private final SignalingChannel signaling;
+    @Getter @Nullable @Setter
+    private SignalingChannel signaling;
     @Getter
-    private final int identifier;
+    private final String identifier;
 
     private final Event.Invokable<String> onEstablishmentError = Event.create();
 
-    public RTCConnection(PeerConnectionFactory factory, RTCConfiguration config, int RTCIdentifier, SignalingChannel signaling){
-        this.signaling = signaling;
+    public RTCConnection(PeerConnectionFactory factory, RTCConfiguration config, String RTCIdentifier){
         this.identifier = RTCIdentifier;
         this.peerConnection = factory.createPeerConnection(config,
             this.getPeerConnectionObserver()
         );
-
     }
 
     public HandledPeerConnectionObserver getPeerConnectionObserver() {
@@ -133,7 +132,26 @@ public abstract class RTCConnection {
         @Override
         public void onSuccess() {
             RTCSignalingMessages.sessionDescription contents = new RTCSignalingMessages.sessionDescription(description.sdpType.ordinal(), description.sdp, con.getIdentifier());
-            con.signaling.sendDescription(contents);
+            if(con.signaling != null){
+                try {
+                    con.signaling.sendDescription(contents).whenComplete((s, e)->{
+                        if(e!=null){
+                            LOGGER.error("Failed to send answer", e);
+                            //send error here so the implementation of RTCConnection may try to reestablish
+                            con.onEstablishmentError.invoke("Failed to send answer");
+                        }
+                    });
+                }
+                catch(Exception e){
+                    LOGGER.error("Failed to send answer", e);
+                    //send error here so the implementation of RTCConnection may try to reestablish
+                    con.onEstablishmentError.invoke("Failed to send answer");
+                }
+            }
+            else{
+                LOGGER.error("Failed to set local description: {}", "No signaling backend was found");
+                con.onEstablishmentError.invoke("No signaling backend was found");
+            }
         }
 
         @Override
@@ -156,7 +174,26 @@ public abstract class RTCConnection {
         @Override
         public void onSuccess() {
             RTCSignalingMessages.sessionDescription contents = new RTCSignalingMessages.sessionDescription(description.sdpType.ordinal(), description.sdp, con.getIdentifier());
-            con.signaling.sendDescription(contents);
+            if(con.signaling != null){
+                try {
+                    con.signaling.sendDescription(contents).whenComplete((s, e)->{
+                        if(e!=null){
+                            LOGGER.error("Failed to send local description", e);
+                            //send error here so the implementation of RTCConnection may try to reestablish
+                            con.onEstablishmentError.invoke("Failed to send local description");
+                        }
+                    });
+                }
+                catch(Exception e){
+                    LOGGER.error("Failed to send local description", e);
+                    //send error here so the implementation of RTCConnection may try to reestablish
+                    con.onEstablishmentError.invoke("Failed to send local description");
+                }
+            }
+            else{
+                LOGGER.error("Failed to set local description: {}", "No signaling backend was found");
+                con.onEstablishmentError.invoke("No signaling backend was found");
+            }
         }
 
         @Override
@@ -228,7 +265,26 @@ public abstract class RTCConnection {
         @Override
         public void onIceCandidate(RTCIceCandidate candidate) {
             RTCSignalingMessages.iceCandidate contents = new RTCSignalingMessages.iceCandidate(candidate.sdpMid, candidate.sdpMLineIndex, candidate.sdp, con.getIdentifier());
-            con.signaling.sendIceCandidate(contents);
+            if(con.signaling != null){
+                try {
+                    con.signaling.sendIceCandidate(contents).whenComplete((s, e)->{
+                        if(e!=null){
+                            LOGGER.error("Failed to send iceCandidates", e);
+                            //send error here so the implementation of RTCConnection may try to reestablish
+                            con.onEstablishmentError.invoke("Failed to send ice candidate");
+                        }
+                    });
+                }
+                catch(Exception e){
+                    LOGGER.error("Failed to send iceCandidates", e);
+                    //send error here so the implementation of RTCConnection may try to reestablish
+                    con.onEstablishmentError.invoke("Failed to send ice candidate");
+                }
+            }
+            else{
+                LOGGER.error("Failed to send ice candidate: {}", "No signaling backend was found");
+                con.onEstablishmentError.invoke("No signaling backend was found");
+            }
         }
     }
 }

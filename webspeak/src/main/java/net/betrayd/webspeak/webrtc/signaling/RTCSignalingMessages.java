@@ -8,19 +8,19 @@ import org.jetbrains.annotations.Nullable;
 public class RTCSignalingMessages {
     private RTCSignalingMessages() {};
     public interface RTCSignalingMessage {
-        int getRTCIdentifier();
+        String getRTCIdentifier();
         String getType();
     }
-    public record iceCandidate(String sdpMid, int sdpMLineIndex, String sdp, int identifier) implements RTCSignalingMessage{
+    public record iceCandidate(String sdpMid, int sdpMLineIndex, String sdp, String identifier) implements RTCSignalingMessage{
         public static final String TYPE = "RTCiceCandidate";
 
         @Override
-        public int getRTCIdentifier() { return identifier; }
+        public String getRTCIdentifier() { return identifier; }
         @Override
         public String getType() { return TYPE; }
     }
 
-    public record sessionDescription(int RTCSdpType, String sdp, int identifier) implements  RTCSignalingMessage{
+    public record sessionDescription(int RTCSdpType, String sdp, String identifier) implements  RTCSignalingMessage{
         public static final String TYPE = "RTCsessionDescription";
 
         /**
@@ -37,7 +37,7 @@ public class RTCSignalingMessages {
         }
 
         @Override
-        public int getRTCIdentifier() { return identifier; }
+        public String getRTCIdentifier() { return identifier; }
         @Override
         public String getType() {
             return TYPE;

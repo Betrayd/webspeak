@@ -3,18 +3,19 @@ package net.betrayd.webspeak.webrtc;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import dev.onvoid.webrtc.*;
-import lombok.Setter;
 import net.betrayd.webspeak.event.Event;
 import net.betrayd.webspeak.webrtc.signaling.RTCConnection;
 import net.betrayd.webspeak.webrtc.signaling.RTCSignalingMessages;
 import net.betrayd.webspeak.webrtc.signaling.ServerSentRTCConnection;
 import net.betrayd.webspeak.webrtc.signaling.SignalingChannel;
+import org.eclipse.jetty.websocket.api.Callback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 public class PlayerRTCDataChannels extends ServerSentRTCConnection implements SignalingChannel {
@@ -36,8 +37,9 @@ public class PlayerRTCDataChannels extends ServerSentRTCConnection implements Si
      */
     private final String logName;
 
-    public PlayerRTCDataChannels(PeerConnectionFactory factory, RTCConfiguration config, int RTCIdentifier, SignalingChannel signaling, Supplier<Collection<RTCConnection>> rtcConnections, String logName) {
-        super(factory, config, RTCIdentifier, signaling);
+    public PlayerRTCDataChannels(PeerConnectionFactory factory, RTCConfiguration config, String RTCIdentifier, Supplier<Collection<RTCConnection>> rtcConnections, String logName) {
+
+        super(factory, config, RTCIdentifier);
         this.rtcConnections = rtcConnections;
         this.logName = logName;
 
@@ -57,18 +59,41 @@ public class PlayerRTCDataChannels extends ServerSentRTCConnection implements Si
 
         this.reliableDataChannel.registerObserver(getObserver(this.reliableDataChannel));
         this.unreliableDataChannel.registerObserver(getObserver(this.unreliableDataChannel));
-
-        createOffer();
     }
 
     @Override
-    public void sendIceCandidate(RTCSignalingMessages.iceCandidate iceCandidate) {
-
+    public CompletableFuture<?> sendIceCandidate(RTCSignalingMessages.iceCandidate iceCandidate) {
+        return sendStrReliable(RTCSignalingMessages.write(iceCandidate));
     }
 
     @Override
-    public void sendDescription(RTCSignalingMessages.sessionDescription offer) {
+    public CompletableFuture<?> sendDescription(RTCSignalingMessages.sessionDescription offer) {
+        return sendStrReliable(RTCSignalingMessages.write(offer));
+    }
 
+    public CompletableFuture<?> sendStrReliable(String message) {
+        return sendStr(reliableDataChannel, message);
+    }
+
+    public CompletableFuture<?> sendStrUnreliable(String message) {
+        return sendStr(unreliableDataChannel, message);
+    }
+
+    private CompletableFuture<?> sendStr(RTCDataChannel dataChannel, String message){
+        if (!getPeerConnection().getConnectionState().equals(RTCPeerConnectionState.CONNECTED))
+            throw new RuntimeException("The Relay is not yet connected");
+
+        var future = new Callback.Completable();
+        ByteBuffer textBuffer = ByteBuffer.wrap(message.getBytes(StandardCharsets.UTF_8));
+        RTCDataChannelBuffer textChannelBuffer = new RTCDataChannelBuffer(textBuffer, false);
+        try{
+            dataChannel.send(textChannelBuffer);
+            future.complete(null);
+        }
+        catch (Exception e){
+            future.completeExceptionally(e);
+        }
+        return future;
     }
 
     public Event<String> onMessageStr(){
@@ -77,14 +102,6 @@ public class PlayerRTCDataChannels extends ServerSentRTCConnection implements Si
 
     public Event<ByteBuffer> onMessageBin(){
         return onMessageBin;
-    }
-
-    public void sendReliable(String message){
-
-    }
-
-    public void sendUnreliable(String message){
-
     }
 
     private RTCDataChannelObserver getObserver(RTCDataChannel channel) {

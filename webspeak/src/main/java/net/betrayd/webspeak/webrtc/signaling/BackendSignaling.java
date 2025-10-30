@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 public class BackendSignaling implements SignalingChannel {
@@ -37,34 +38,12 @@ public class BackendSignaling implements SignalingChannel {
     }
 
     @Override
-    public void sendIceCandidate(RTCSignalingMessages.iceCandidate iceCandidate) {
-        try {
-            backend.sendMessage(sessionID, RTCSignalingMessages.write(iceCandidate)).whenComplete((s, e)->{
-                if(e!=null){
-                    LOGGER.error("{} - Failed to send iceCandidates", sessionID, e);
-                    //send error here so the implementation of RTCConnection may try to reestablish
-                }
-            });
-        }
-        catch(Exception e){
-            LOGGER.error("{} - Failed to send iceCandidates", sessionID, e);
-            //send error here so the implementation of RTCConnection may try to reestablish
-        }
+    public CompletableFuture<?> sendIceCandidate(RTCSignalingMessages.iceCandidate iceCandidate) {
+        return backend.sendMessage(sessionID, RTCSignalingMessages.write(iceCandidate));
     }
 
     @Override
-    public void sendDescription(RTCSignalingMessages.sessionDescription offer) {
-        try {
-            backend.sendMessage(sessionID, RTCSignalingMessages.write(offer)).whenComplete((s, e)->{
-                if(e!=null){
-                    LOGGER.error("{} - Failed to send sessionDescription", sessionID, e);
-                    //send error here so the implementation of RTCConnection may try to reestablish
-                }
-            });
-        }
-        catch(Exception e){
-            LOGGER.error("{} - Failed to send sessionDescription", sessionID, e);
-            //send error here so the implementation of RTCConnection may try to reestablish
-        }
+    public CompletableFuture<?> sendDescription(RTCSignalingMessages.sessionDescription offer) {
+        return backend.sendMessage(sessionID, RTCSignalingMessages.write(offer));
     }
 }

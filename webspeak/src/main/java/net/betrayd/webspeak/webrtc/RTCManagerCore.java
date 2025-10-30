@@ -39,7 +39,16 @@ public class RTCManagerCore {
         if(player.getSignaling() == null){
             return null;
         }
-        return new PlayerRTCDataChannels(factory, config, RTCConnection.getNextIdentifier(), player.getSignaling(), List::of, player.getSessionId());
+        PlayerRTCDataChannels dataChannels = new PlayerRTCDataChannels(factory, config, RTCConnection.getNextIdentifier(), List::of, player.getSessionId());
+        //this is the most dangerous thing ever, but IDK so whatever I guess
+        dataChannels.onEstablishmentError().addListener((error) -> {
+            if(player.getSignaling() == null){
+                return;
+            }
+            LOGGER.info("Error establishing RTC connection: {}, Retrying automatically", error);
+            player.setRtcConnection(createPeerConnection(player));
+        });
+        return dataChannels;
     }
 
     public BackendSignaling createRelaySignaling(WebSpeakPlayer player, ServerBackend backend){

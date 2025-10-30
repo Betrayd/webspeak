@@ -3,12 +3,13 @@ package net.betrayd.webspeak.webrtc.signaling;
 import net.betrayd.webspeak.event.Event;
 
 import java.util.Collection;
+import java.util.concurrent.CompletableFuture;
 
 //TODO: add some way to detect signaling message errors from the RTCConnection in case they want to do something
 public interface SignalingChannel {
-    void sendIceCandidate(RTCSignalingMessages.iceCandidate iceCandidate);
+    CompletableFuture<?> sendIceCandidate(RTCSignalingMessages.iceCandidate iceCandidate);
 
-    void sendDescription(RTCSignalingMessages.sessionDescription offer);
+    CompletableFuture<?> sendDescription(RTCSignalingMessages.sessionDescription offer);
 
     default void handleReceivedIceCandidate(Collection<RTCConnection> con, RTCSignalingMessages.iceCandidate message){
         for(var connection : con){

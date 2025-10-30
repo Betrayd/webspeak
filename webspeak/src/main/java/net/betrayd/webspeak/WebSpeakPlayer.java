@@ -28,6 +28,11 @@ public abstract class WebSpeakPlayer implements AudioSource3D {
     @Setter
     private PlayerRTCDataChannels rtcConnection = null;
 
+   /* @Nullable
+    @Getter
+    @Setter
+    private*/
+
     public WebSpeakPlayer(WebSpeakServer server)
     {
         this.server = server;
