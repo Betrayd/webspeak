@@ -13,4 +13,5 @@ module net.betrayd.webspeak {
     exports net.betrayd.webspeak.event;
     exports net.betrayd.webspeak.math;
     exports net.betrayd.webspeak.webrtc;
+    exports net.betrayd.webspeak.webrtc.signaling;
 }

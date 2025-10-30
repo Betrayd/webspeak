@@ -8,10 +8,9 @@ import dev.onvoid.webrtc.RTCIceServer;
 import lombok.Getter;
 import lombok.NonNull;
 import net.betrayd.webspeak.event.Event;
-import net.betrayd.webspeak.webrtc.RTCManager;
+import net.betrayd.webspeak.webrtc.RTCManagerCore;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -48,7 +47,7 @@ public class WebSpeakServer implements Executor {
     private final ServerBackend serverBackend;
 
     @Getter @NonNull
-    private final RTCManager rtcManager;
+    private final RTCManagerCore rtcManager;
 
     private volatile boolean inTick;
     private volatile Thread tickThread;
@@ -82,7 +81,7 @@ public class WebSpeakServer implements Executor {
         iceServer.urls.add("stun:stun.l.google.com:19302");
         config.iceServers.add(iceServer);
         //Create the RTC manager
-        this.rtcManager = new RTCManager(config, serverBackend, this);
+        this.rtcManager = new RTCManagerCore(config, serverBackend, this);
 
         serverBackend.getOnClose().addListener(this::onStop);
     }

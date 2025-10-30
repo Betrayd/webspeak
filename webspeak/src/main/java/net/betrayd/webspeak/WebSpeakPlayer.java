@@ -1,10 +1,10 @@
 package net.betrayd.webspeak;
 
-import dev.onvoid.webrtc.RTCPeerConnection;
 import dev.onvoid.webrtc.media.MediaStreamTrack;
 import lombok.Getter;
 import lombok.Setter;
-import net.betrayd.webspeak.webrtc.RTCClientConnection;
+import net.betrayd.webspeak.webrtc.PlayerRTCDataChannels;
+import net.betrayd.webspeak.webrtc.signaling.BackendSignaling;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -21,9 +21,15 @@ public abstract class WebSpeakPlayer implements AudioSource3D {
     @Nullable
     @Getter
     @Setter
-    private RTCClientConnection rtcConnection = null;
+    private BackendSignaling signaling = null;
 
-    public WebSpeakPlayer(WebSpeakServer server) {
+    @Nullable
+    @Getter
+    @Setter
+    private PlayerRTCDataChannels rtcConnection = null;
+
+    public WebSpeakPlayer(WebSpeakServer server)
+    {
         this.server = server;
     }
 
@@ -53,9 +59,9 @@ public abstract class WebSpeakPlayer implements AudioSource3D {
 
     @Override
     public MediaStreamTrack getAudioTrack(){
-        if(rtcConnection != null){
-            return rtcConnection.micTrack;
-        }
+        //if(rtcConnection != null){
+        //    return rtcConnection.micTrack;
+        //}
         return null;
     }
 }
