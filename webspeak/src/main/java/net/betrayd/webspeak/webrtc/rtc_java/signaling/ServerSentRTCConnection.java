@@ -1,10 +1,9 @@
-package net.betrayd.webspeak.webrtc.signaling;
+package net.betrayd.webspeak.webrtc.rtc_java.signaling;
 
 import dev.onvoid.webrtc.PeerConnectionFactory;
 import dev.onvoid.webrtc.RTCConfiguration;
-import dev.onvoid.webrtc.RTCPeerConnectionState;
 import dev.onvoid.webrtc.RTCSdpType;
-import net.betrayd.webspeak.event.Event;
+import net.betrayd.webspeak.webrtc.ice4j.RTCSignalingMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

@@ -1,8 +1,9 @@
-package net.betrayd.webspeak.webrtc.signaling;
+package net.betrayd.webspeak.webrtc.rtc_java.signaling;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import net.betrayd.webspeak.ServerBackend;
+import net.betrayd.webspeak.webrtc.ice4j.RTCSignalingMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

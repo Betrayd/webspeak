@@ -1,10 +1,10 @@
-package net.betrayd.webspeak.webrtc;
+package net.betrayd.webspeak.webrtc.rtc_java;
 import dev.onvoid.webrtc.*;
 import net.betrayd.webspeak.ServerBackend;
 import net.betrayd.webspeak.WebSpeakPlayer;
 import net.betrayd.webspeak.WebSpeakServer;
-import net.betrayd.webspeak.webrtc.signaling.BackendSignaling;
-import net.betrayd.webspeak.webrtc.signaling.RTCConnection;
+import net.betrayd.webspeak.webrtc.rtc_java.signaling.BackendSignaling;
+import net.betrayd.webspeak.webrtc.rtc_java.signaling.RTCConnection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

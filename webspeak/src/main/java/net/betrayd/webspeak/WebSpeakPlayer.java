@@ -3,8 +3,8 @@ package net.betrayd.webspeak;
 import dev.onvoid.webrtc.media.MediaStreamTrack;
 import lombok.Getter;
 import lombok.Setter;
-import net.betrayd.webspeak.webrtc.PlayerRTCDataChannels;
-import net.betrayd.webspeak.webrtc.signaling.BackendSignaling;
+import net.betrayd.webspeak.webrtc.rtc_java.PlayerRTCDataChannels;
+import net.betrayd.webspeak.webrtc.rtc_java.signaling.BackendSignaling;
 import org.jetbrains.annotations.Nullable;
 
 /**

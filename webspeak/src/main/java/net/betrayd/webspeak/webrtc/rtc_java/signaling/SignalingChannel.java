@@ -1,6 +1,6 @@
-package net.betrayd.webspeak.webrtc.signaling;
+package net.betrayd.webspeak.webrtc.rtc_java.signaling;
 
-import net.betrayd.webspeak.event.Event;
+import net.betrayd.webspeak.webrtc.ice4j.RTCSignalingMessages;
 
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;

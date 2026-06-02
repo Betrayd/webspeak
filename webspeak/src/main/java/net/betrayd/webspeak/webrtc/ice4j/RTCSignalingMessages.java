@@ -1,8 +1,7 @@
-package net.betrayd.webspeak.webrtc.signaling;
+package net.betrayd.webspeak.webrtc.ice4j;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import dev.onvoid.webrtc.RTCSdpType;
 import org.jetbrains.annotations.Nullable;
 
 public class RTCSignalingMessages {
@@ -30,10 +29,10 @@ public class RTCSignalingMessages {
         @Nullable
         public RTCSdpType getSdpType(){
             RTCSdpType value = null;
-            if(dev.onvoid.webrtc.RTCSdpType.values().length < RTCSdpType){
+            if(net.betrayd.webspeak.webrtc.ice4j.RTCSdpType.values().length < RTCSdpType){
                 return null;
             }
-            return dev.onvoid.webrtc.RTCSdpType.values()[RTCSdpType];
+            return net.betrayd.webspeak.webrtc.ice4j.RTCSdpType.values()[RTCSdpType];
         }
 
         @Override

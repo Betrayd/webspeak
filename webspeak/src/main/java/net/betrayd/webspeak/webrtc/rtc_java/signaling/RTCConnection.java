@@ -1,9 +1,10 @@
-package net.betrayd.webspeak.webrtc.signaling;
+package net.betrayd.webspeak.webrtc.rtc_java.signaling;
 
 import dev.onvoid.webrtc.*;
 import lombok.Getter;
 import lombok.Setter;
 import net.betrayd.webspeak.event.Event;
+import net.betrayd.webspeak.webrtc.ice4j.RTCSignalingMessages;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,7 +77,7 @@ public abstract class RTCConnection {
             peerConnection.addIceCandidate(candidate);
         }
         catch (Throwable e){
-            LOGGER.error("Failed to handle received ice candidates", e);
+            LOGGER.error("Failed to handle received ice iceCandidates", e);
         }
     }
 
@@ -253,7 +254,7 @@ public abstract class RTCConnection {
         }
     }
 
-    //class for handling ice candidates externally
+    //class for handling ice iceCandidates externally
     public static class HandledPeerConnectionObserver implements PeerConnectionObserver{
 
         private final RTCConnection con;

@@ -8,7 +8,7 @@ import dev.onvoid.webrtc.RTCIceServer;
 import lombok.Getter;
 import lombok.NonNull;
 import net.betrayd.webspeak.event.Event;
-import net.betrayd.webspeak.webrtc.RTCManagerCore;
+import net.betrayd.webspeak.webrtc.rtc_java.RTCManagerCore;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

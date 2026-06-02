@@ -1,13 +1,13 @@
-package net.betrayd.webspeak.webrtc;
+package net.betrayd.webspeak.webrtc.rtc_java;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import dev.onvoid.webrtc.*;
 import net.betrayd.webspeak.event.Event;
-import net.betrayd.webspeak.webrtc.signaling.RTCConnection;
-import net.betrayd.webspeak.webrtc.signaling.RTCSignalingMessages;
-import net.betrayd.webspeak.webrtc.signaling.ServerSentRTCConnection;
-import net.betrayd.webspeak.webrtc.signaling.SignalingChannel;
+import net.betrayd.webspeak.webrtc.rtc_java.signaling.RTCConnection;
+import net.betrayd.webspeak.webrtc.ice4j.RTCSignalingMessages;
+import net.betrayd.webspeak.webrtc.rtc_java.signaling.ServerSentRTCConnection;
+import net.betrayd.webspeak.webrtc.rtc_java.signaling.SignalingChannel;
 import org.eclipse.jetty.websocket.api.Callback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
