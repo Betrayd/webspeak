@@ -1,11 +1,11 @@
 //Large portions of this class were translated from jitsi-VideoBridge
-package net.betrayd.webspeak.webrtc.ice4j;
+package net.betrayd.webspeak.webrtc.ice;
 
 import net.betrayd.webspeak.event.Event;
 import org.ice4j.Transport;
 import org.ice4j.TransportAddress;
 import org.ice4j.ice.*;
-import org.ice4j.util.Buffer;
+import org.ice4j.ice.harvest.StunCandidateHarvester;
 import org.ice4j.util.BufferHandler;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -15,7 +15,9 @@ import org.slf4j.LoggerFactory;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class IceTransport {
@@ -29,14 +31,19 @@ public class IceTransport {
 
     private final Event.Invokable<IceConnectionState> iceConnectionStateChangedEvent = Event.create();
     private final Event.Invokable<Void> iceReadyEvent = Event.create();
-    private final Event.Invokable<Buffer> packetReceivedEvent = Event.create();
+    private final Event.Invokable<Buffer> rawPacketReceivedEvent = Event.create();
 
     private final PropertyChangeListener iceStateChangedListener = this::iceStateChanged;
     private final PropertyChangeListener iceStreamChangedListener = this::iceStreamChanged;
 
-    public IceTransport(){
+    public IceTransport(Collection<LocalCandidate> transportAddresses){
         iceAgent = new Agent();
         iceAgent.addStateChangeListener(iceStateChangedListener);
+
+        for(LocalCandidate localCandidate : transportAddresses){
+            TransportAddress stunServer = new TransportAddress(localCandidate.address(), localCandidate.port(), Transport.UDP);
+            iceAgent.addCandidateHarvester(new StunCandidateHarvester(stunServer));
+        }
     }
 
     /**
@@ -80,8 +87,8 @@ public class IceTransport {
      * <p>This data is fully garbage and really should only be used internally as we don't even know what webRTC stream this is attached to</p>
      * @return
      */
-    public Event<Buffer> onPacketReceived(){
-        return packetReceivedEvent;
+    public Event<Buffer> onRawPacketReceived(){
+        return rawPacketReceivedEvent;
     }
 
     @Nullable
@@ -104,10 +111,51 @@ public class IceTransport {
         iceComponent = iceAgent.createComponent(stream, KeepAliveStrategy.SELECTED_ONLY, true);
         iceComponent.setBufferCallback(new BufferHandler() {
             @Override
-            public void handleBuffer(@NotNull Buffer buffer) {
-                packetReceivedEvent.invoke(buffer);
+            public void handleBuffer(@NotNull org.ice4j.util.Buffer buffer) {
+                rawPacketReceivedEvent.invoke(new Buffer(buffer.getBuffer(), buffer.getOffset(), buffer.getLength()));
             }
         });
+    }
+
+    /**
+     * gets the local Ufrag the ice agent
+     */
+    public String getLocalUfrag() {
+        return iceAgent.getLocalUfrag();
+    }
+
+    /**
+     * gets the local password from the ice agent
+     */
+    public String getLocalPassword() {
+        return iceAgent.getLocalPassword();
+    }
+
+    /**
+     * Formats all gathered local candidates into WebRTC 'a=candidate:...' SDP lines.
+     */
+    public String getLocalCandidatesAsSdp() {
+        StringBuilder sdpLines = new StringBuilder();
+        if (iceComponent != null) {
+            for (org.ice4j.ice.LocalCandidate candidate : iceComponent.getLocalCandidates()) {
+                // Formatting based on RFC 5245 for SDP candidate attributes
+                sdpLines.append("a=candidate:")
+                        .append(candidate.getFoundation()).append(" ")
+                        .append(candidate.getParentComponent().getComponentID()).append(" ")
+                        .append(candidate.getTransport().toString().toLowerCase()).append(" ")
+                        .append(candidate.getPriority()).append(" ")
+                        .append(candidate.getTransportAddress().getHostAddress()).append(" ")
+                        .append(candidate.getTransportAddress().getPort()).append(" ")
+                        .append("typ ").append(candidate.getType().toString());
+
+                if (candidate.getRelatedAddress() != null) {
+                    sdpLines.append(" raddr ").append(candidate.getRelatedAddress().getHostAddress())
+                            .append(" rport ").append(candidate.getRelatedAddress().getPort());
+                }
+                sdpLines.append("\r\n");
+            }
+        }
+        return sdpLines.toString();
     }
 
     /**
@@ -117,7 +165,7 @@ public class IceTransport {
      * @param data an object representing the session description data used to start the ice handshake,
      *             can be generated from the sdp in the session description
      */
-    public void start(IceStartData data){
+    public void startRemote(IceStartData data){
         if(iceComponent == null){
             LOGGER.error("start called before iceComponent initialized. Use init First.");
             return;
@@ -183,6 +231,21 @@ public class IceTransport {
     }
 
     /**
+     * Sends data over this ice transport to the attached webRTC client
+     * <p>We may want to add some kind of running checker to match Jitis's implementation
+     * so we can detect and not fire send instead of just catching errors</p>
+     */
+    public void send(byte[] data, int offset, int length) throws IOException {
+        try{
+            iceComponent.send(data, offset, length);
+        }
+        catch (IOException e){
+            LOGGER.error("Error sending packet", e);
+            throw new IOException(e);
+        }
+    }
+
+    /**
      * adds the remote ice candidate to this object's iceAgent.
      * <p>Used in the handshake process for establishing a connection</p>
      * @param parsed
@@ -201,7 +264,7 @@ public class IceTransport {
             RemoteCandidate remoteCandidate = new RemoteCandidate(transportAddress, component, CandidateType.parse(parsed.type()), parsed.foundation(), parsed.priority(), null);
 
             if(iceAgent.getState() == IceProcessingState.RUNNING){
-                component.addRemoteCandidate(remoteCandidate);
+                component.addUpdateRemoteCandidates(remoteCandidate);
             }else{
                 component.addRemoteCandidate(remoteCandidate);
             }
@@ -237,5 +300,10 @@ public class IceTransport {
         CONNECTED,
         STOPPED,
         FAILED
+    }
+
+    //this may cause audio jitter. Passing Buffer dirrectly from ice4j may be bettedr
+    public static record Buffer(byte[] data, int offset, int length){
+
     }
 }

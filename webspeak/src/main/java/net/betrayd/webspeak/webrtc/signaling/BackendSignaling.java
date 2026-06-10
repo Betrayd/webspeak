@@ -1,9 +1,10 @@
-package net.betrayd.webspeak.webrtc.rtc_java.signaling;
+package net.betrayd.webspeak.webrtc.signaling;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import net.betrayd.webspeak.ServerBackend;
-import net.betrayd.webspeak.webrtc.ice4j.RTCSignalingMessages;
+import net.betrayd.webspeak.event.Event;
+import net.betrayd.webspeak.webrtc.RTCConnection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,7 +19,10 @@ public class BackendSignaling implements SignalingChannel {
     private final String sessionID;
     private final ServerBackend backend;
 
-    public BackendSignaling(String sessionID, ServerBackend backend, Supplier<Collection<RTCConnection>> rtcConnections){
+    private final Event.Invokable<RTCSignalingMessages.sessionDescription> sessionDescriptionReceivedEvent = Event.create();
+    private final Event.Invokable<RTCSignalingMessages.iceCandidate> iceCandidateReceivedEvent = Event.create();
+
+    public BackendSignaling(String sessionID, ServerBackend backend){
         this.sessionID = sessionID;
         this.backend = backend;
         backend.getOnMessageReceived().addListener((event) -> {
@@ -28,14 +32,19 @@ public class BackendSignaling implements SignalingChannel {
                 if(obj != null){
                     String type = obj.get("type").getAsString();
                     switch (type) {
-                        case RTCSignalingMessages.iceCandidate.TYPE ->
-                                handleReceivedIceCandidate(rtcConnections.get(), GSON.fromJson(obj, RTCSignalingMessages.iceCandidate.class));
                         case RTCSignalingMessages.sessionDescription.TYPE ->
-                                handleReceivedSessionDescription(rtcConnections.get(), GSON.fromJson(obj, RTCSignalingMessages.sessionDescription.class));
+                                sessionDescriptionReceivedEvent.invoke(GSON.fromJson(obj, RTCSignalingMessages.sessionDescription.class));
+                        case RTCSignalingMessages.iceCandidate.TYPE ->
+                                iceCandidateReceivedEvent.invoke(GSON.fromJson(obj, RTCSignalingMessages.iceCandidate.class));
                     }
                 }
             }
         });
+    }
+
+    @Override
+    public CompletableFuture<?> sendDescription(RTCSignalingMessages.sessionDescription offer) {
+        return backend.sendMessage(sessionID, RTCSignalingMessages.write(offer));
     }
 
     @Override
@@ -44,7 +53,12 @@ public class BackendSignaling implements SignalingChannel {
     }
 
     @Override
-    public CompletableFuture<?> sendDescription(RTCSignalingMessages.sessionDescription offer) {
-        return backend.sendMessage(sessionID, RTCSignalingMessages.write(offer));
+    public Event<RTCSignalingMessages.sessionDescription> onReceivedSessionDescription() {
+        return sessionDescriptionReceivedEvent;
+    }
+
+    @Override
+    public Event<RTCSignalingMessages.iceCandidate> onReceivedIceCandidate() {
+        return iceCandidateReceivedEvent;
     }
 }

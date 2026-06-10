@@ -3,15 +3,18 @@ package net.betrayd.webspeak;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Maps;
-import dev.onvoid.webrtc.RTCConfiguration;
-import dev.onvoid.webrtc.RTCIceServer;
 import lombok.Getter;
 import lombok.NonNull;
 import net.betrayd.webspeak.event.Event;
-import net.betrayd.webspeak.webrtc.rtc_java.RTCManagerCore;
+import net.betrayd.webspeak.webrtc.RTCManager;
+import net.betrayd.webspeak.webrtc.ice.LocalCandidate;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
@@ -47,7 +50,7 @@ public class WebSpeakServer implements Executor {
     private final ServerBackend serverBackend;
 
     @Getter @NonNull
-    private final RTCManagerCore rtcManager;
+    private final RTCManager rtcManager;
 
     private volatile boolean inTick;
     private volatile Thread tickThread;
@@ -76,12 +79,21 @@ public class WebSpeakServer implements Executor {
         this.serverBackend = serverBackend;
 
         //TODO: add configuration somewhere else
-        RTCConfiguration config = new RTCConfiguration();
-        RTCIceServer iceServer = new RTCIceServer();
-        iceServer.urls.add("stun:stun.l.google.com:19302");
-        config.iceServers.add(iceServer);
+
+        //RTCConfiguration config = new RTCConfiguration();
+        //RTCIceServer iceServer = new RTCIceServer();
+        //iceServer.urls.add("stun:stun.l.google.com:19302");
+        //config.iceServers.add(iceServer);
+
+        List<LocalCandidate> localCandidates = new ArrayList<>();
+        try{
+            localCandidates.add(new LocalCandidate(InetAddress.getByName("stun.l.google.com"), 19302));
+        }catch(UnknownHostException failure){
+
+        }
+
         //Create the RTC manager
-        this.rtcManager = new RTCManagerCore(config, serverBackend, this);
+        this.rtcManager = new RTCManager(localCandidates, serverBackend, this);
 
         serverBackend.getOnClose().addListener(this::onStop);
     }

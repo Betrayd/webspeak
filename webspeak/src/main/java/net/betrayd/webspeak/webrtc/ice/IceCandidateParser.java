@@ -1,4 +1,4 @@
-package net.betrayd.webspeak.webrtc.ice4j;
+package net.betrayd.webspeak.webrtc.ice;
 
 public class IceCandidateParser {
 
@@ -24,5 +24,15 @@ public class IceCandidateParser {
         return new ParsedCandidateSDP(foundation, component, protocol, priority, ip, port, type);
     }
 
+    /**
+     * A parsed ice candidate
+     * @param foundation
+     * @param component
+     * @param protocol
+     * @param priority
+     * @param ip
+     * @param port
+     * @param type
+     */
     public static record ParsedCandidateSDP(String foundation, int component, String protocol, long priority, String ip, int port, String type) {}
 }

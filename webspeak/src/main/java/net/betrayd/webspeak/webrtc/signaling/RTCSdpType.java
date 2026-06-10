@@ -13,7 +13,7 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
-package net.betrayd.webspeak.webrtc.ice4j;
+package net.betrayd.webspeak.webrtc.signaling;
 
 /**
  * The RTCSdpType describes the type of an RTCSessionDescription.

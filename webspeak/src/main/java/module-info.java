@@ -4,9 +4,11 @@ module net.betrayd.webspeak {
     requires org.eclipse.jetty.websocket.client;
     requires com.google.gson;
     requires com.google.common;
-    requires webrtc.java;
     requires ice4j;
     requires java.desktop;
+    requires org.bouncycastle.tls;
+    requires org.bouncycastle.provider;
+    requires org.bouncycastle.pkix;
 
     //TODO: restrict this, (needs to be there to start because of reflective access)
     exports net.betrayd.webspeak.impl.relay;
@@ -15,7 +17,7 @@ module net.betrayd.webspeak {
     exports net.betrayd.webspeak.event;
     exports net.betrayd.webspeak.math;
     exports net.betrayd.webspeak.webrtc;
-    exports net.betrayd.webspeak.webrtc.rtc_java.signaling;
-    exports net.betrayd.webspeak.webrtc.rtc_java;
-    exports net.betrayd.webspeak.webrtc.ice4j;
+    exports net.betrayd.webspeak.webrtc.signaling;
+    exports net.betrayd.webspeak.webrtc.ice;
+    exports net.betrayd.webspeak.webrtc.dtls;
 }

@@ -1,6 +1,5 @@
 package net.betrayd.webspeak;
 
-import dev.onvoid.webrtc.media.MediaStreamTrack;
 import net.betrayd.webspeak.math.Vec3d;
 
 /**
@@ -10,7 +9,7 @@ public interface AudioSource3D {
 
     //IDK what the heck I'm doing so I guess hacky workaround for now. 
     //TODO: actual implementation
-    MediaStreamTrack getAudioTrack();
+    //MediaStreamTrack getAudioTrack();
 
     /**
      * Get the global position of this audio source.
