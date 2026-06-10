@@ -51,7 +51,8 @@ public class RTCConnection {
             data = IceStartData.fromSdp(sessionDescription.sdp());
         }
         catch (IllegalArgumentException e) {
-            LOGGER.warn("received bad ice packet");
+            //TODO: is it safe to pass user input straight through console? IDK, Log4Shell?
+            LOGGER.warn("received bad ice packet {}", sessionDescription.sdp());
         }
 
         if(data != null){

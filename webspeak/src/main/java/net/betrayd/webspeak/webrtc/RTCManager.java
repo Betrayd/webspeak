@@ -76,6 +76,8 @@ public class RTCManager {
 
         PlayerRTCConnection playerRTCConnection = new PlayerRTCConnection(rtcConnection, signalingServer);
         player.setConnection(playerRTCConnection);
+
+        rtcConnection.initiateSfuOffer(signalingServer);
     }
 
     /**

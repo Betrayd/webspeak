@@ -31,7 +31,7 @@ public record IceStartData(String ufrag, String password, List<IceCandidateParse
                 if (line.trim().startsWith("a=ice-ufrag:")) {
                     ufrag = line.substring(12).trim();
                 }
-                else if(line.trim().startsWith("a=ice-password:")) {
+                else if(line.trim().startsWith("a=ice-pwd:")) {
                     password = line.substring(10).trim();
                 }
                 else if (line.startsWith("a=candidate:")){
