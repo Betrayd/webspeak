@@ -15,9 +15,13 @@ import org.slf4j.LoggerFactory;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.IOException;
-import java.net.InetAddress;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class IceTransport {
@@ -26,6 +30,7 @@ public class IceTransport {
     private final Agent iceAgent;
     private AtomicBoolean iceConnected = new AtomicBoolean(false);
     private Instant lastPingTime = Instant.EPOCH;
+    private ScheduledFuture<?> keepAliveTask;
     @Nullable
     private Component iceComponent = null;
 
@@ -38,6 +43,7 @@ public class IceTransport {
 
     public IceTransport(Collection<LocalCandidate> transportAddresses){
         iceAgent = new Agent();
+        iceAgent.setPerformConsentFreshness(true);
         iceAgent.addStateChangeListener(iceStateChangedListener);
 
         for(LocalCandidate localCandidate : transportAddresses){
@@ -52,15 +58,6 @@ public class IceTransport {
      */
     public boolean getIceConnected(){
         return iceConnected.get();
-    }
-
-    /**
-     * gets the Instant that we last guarenteed a response from the connected RTC client
-     * <p>This is useful for timeing out connections</p>
-     * @return Last sucessful ping time
-     */
-    public Instant getLastPingTime(){
-        return lastPingTime;
     }
 
     /**
@@ -105,7 +102,7 @@ public class IceTransport {
      * This is mainly an internal API
      * @throws IOException if an error occurs
      */
-    public void init() throws IOException {
+    public void init(ScheduledExecutorService sharedTimer) throws IOException {
         IceMediaStream stream = iceAgent.createMediaStream("stream");
         stream.addPairChangeListener(iceStreamChangedListener);
         iceComponent = iceAgent.createComponent(stream, KeepAliveStrategy.SELECTED_ONLY, true);
@@ -115,6 +112,19 @@ public class IceTransport {
                 rawPacketReceivedEvent.invoke(new Buffer(buffer.getBuffer(), buffer.getOffset(), buffer.getLength()));
             }
         });
+
+        keepAliveTask = sharedTimer.scheduleAtFixedRate(() -> {
+            if (getIceConnected()) {
+                long secondsSincePing = Duration.between(lastPingTime, Instant.now()).getSeconds();
+
+                if (secondsSincePing > 15) {
+                    LOGGER.warn("ICE connection timed out natively. Firing FAILED event.");
+                    // Uniformly fire the exact same event that ice4j failures fire
+                    iceConnectionStateChangedEvent.invoke(IceConnectionState.FAILED);
+                    stop();
+                }
+            }
+        }, 5, 5, TimeUnit.SECONDS);
     }
 
     /**
@@ -223,6 +233,10 @@ public class IceTransport {
      * for our design philosophy
      */
     public void stop(){
+        if (keepAliveTask != null) {
+            keepAliveTask.cancel(false);
+        }
+
         iceAgent.removeStateChangeListener(iceStateChangedListener);
         if(iceComponent != null){
             getCurrentIceMediaStream().removePairStateChangeListener(iceStreamChangedListener);

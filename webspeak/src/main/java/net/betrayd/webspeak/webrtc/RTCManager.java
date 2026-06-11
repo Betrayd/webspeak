@@ -21,19 +21,23 @@ import java.security.*;
 import java.security.cert.X509Certificate;
 import java.util.Collection;
 import java.util.Date;
+import java.util.concurrent.ScheduledExecutorService;
 
 public class RTCManager {
 
     public final ServerBackend serverBackend;
     public final WebSpeakServer server;
 
+    private final ScheduledExecutorService keepAliveThread;
+
     // Permanent cryptographic identities for this server session
     private final PrivateKey localPrivateKey;
     private final X509Certificate localCertificate;
 
-    public RTCManager(Collection<LocalCandidate> localCandidates, ServerBackend serverBackend, WebSpeakServer server) {
+    public RTCManager(Collection<LocalCandidate> localCandidates, ServerBackend serverBackend, WebSpeakServer server, ScheduledExecutorService thread) {
         this.serverBackend = serverBackend;
         this.server = server;
+        this.keepAliveThread = thread;
 
         // 1. Explicitly register Bouncy Castle if it hasn't been done yet
         if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
@@ -63,7 +67,7 @@ public class RTCManager {
 
         IceTransport transport = new IceTransport(localCandidates);
         try{
-            transport.init();
+            transport.init(keepAliveThread);
         }
         catch(IOException e){
             //TODO: Error

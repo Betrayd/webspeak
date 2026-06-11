@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 /**
  * <p>The main server responsible for WebSpeak. While it doesn't handle in-band or out-of-band communications directly,
@@ -93,7 +94,7 @@ public class WebSpeakServer implements Executor {
         }
 
         //Create the RTC manager
-        this.rtcManager = new RTCManager(localCandidates, serverBackend, this);
+        this.rtcManager = new RTCManager(localCandidates, serverBackend, this, Executors.newSingleThreadScheduledExecutor());
 
         serverBackend.getOnClose().addListener(this::onStop);
     }
