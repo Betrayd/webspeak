@@ -1,4 +1,4 @@
-package net.betrayd.webspeak.webrtc.dtls;
+package net.betrayd.webspeak.webrtc.dtls.old;
 
 import net.betrayd.webspeak.event.Event;
 import org.bouncycastle.tls.*;
@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.util.Hashtable;
+import java.util.Vector;
 
 public class DtlsServerImpl extends DefaultTlsServer {
 
@@ -20,12 +21,13 @@ public class DtlsServerImpl extends DefaultTlsServer {
      * Gotten from {@link org.bouncycastle.tls.SRTPProtectionProfile}
      */
     private int selectedSrtpProtectionProtocol;
+    private boolean negotiateDataChannelAlpn = false;
 
     private final X509Certificate localCertificate;
     private final PrivateKey localPrivateKey;
     private final String localFingerprint;
 
-    private Event.Invokable<Void> handshakeCompeteEvent;
+    private final Event.Invokable<Void> handshakeCompleteEvent = Event.create();
 
     public DtlsServerImpl(TlsCrypto tlsCrypto, X509Certificate localCertificate, PrivateKey localPrivateKey) {
         super(tlsCrypto);
@@ -35,7 +37,7 @@ public class DtlsServerImpl extends DefaultTlsServer {
     }
 
     public Event<Void> onHandshakeComplete(){
-        return handshakeCompeteEvent;
+        return handshakeCompleteEvent;
     }
 
     public String getLocalFingerprint() {
@@ -90,10 +92,35 @@ public class DtlsServerImpl extends DefaultTlsServer {
     public void processClientExtensions(Hashtable clientExtensions) throws IOException {
         super.processClientExtensions(clientExtensions);
 
+        // 1. Safe SRTP Check
         UseSRTPData useSrtp = TlsSRTPUtils.getUseSRTPExtension(clientExtensions);
         if (useSrtp != null) {
-            this.selectedSrtpProtectionProtocol = useSrtp.getProtectionProfiles()[0];
+            for (int profile : useSrtp.getProtectionProfiles()) {
+                if (profile == SRTPProtectionProfile.SRTP_AEAD_AES_128_GCM ||
+                        profile == SRTPProtectionProfile.SRTP_AES128_CM_HMAC_SHA1_80) {
+                    this.selectedSrtpProtectionProtocol = profile;
+                    break;
+                }
+            }
         }
+
+        // 2. FIX: ALPN Check (Strictly required by browsers for WebRTC Data Channels)
+        Vector<?> alpnExtension = TlsExtensionsUtils.getALPNExtensionClient(clientExtensions);
+        if (alpnExtension != null) {
+            for (Object name : alpnExtension) {
+                ProtocolName protocolName = (ProtocolName) name;
+                if ("webrtc-datachannel".equals(protocolName.getUtf8Decoding())) {
+                    this.negotiateDataChannelAlpn = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    @Override
+    public ProtocolVersion[] getProtocolVersions() {
+        // Force the server to explicitly announce and accept DTLS 1.2
+        return new ProtocolVersion[] { ProtocolVersion.DTLSv12 };
     }
 
     @Override
@@ -103,9 +130,19 @@ public class DtlsServerImpl extends DefaultTlsServer {
             extensions = new Hashtable();
         }
 
-        int[] profile = new int[] { this.selectedSrtpProtectionProtocol };
-        UseSRTPData serverSrtpData = new UseSRTPData(profile, new byte[0]);
-        TlsSRTPUtils.addUseSRTPExtension(extensions, serverSrtpData);
+        if (this.selectedSrtpProtectionProtocol != 0) {
+            TlsSRTPUtils.addUseSRTPExtension(extensions, new UseSRTPData(
+                    new int[] { this.selectedSrtpProtectionProtocol },
+                    new byte[0]
+            ));
+        }
+
+        // FIX: Echo back the ALPN protocol to satisfy the browser
+        if (this.negotiateDataChannelAlpn) {
+            Vector<ProtocolName> alpnList = new Vector<>();
+            alpnList.add(ProtocolName.asUtf8Encoding("webrtc-datachannel"));
+            TlsExtensionsUtils.addALPNExtensionClient(extensions, alpnList);
+        }
 
         return extensions;
     }
@@ -114,6 +151,10 @@ public class DtlsServerImpl extends DefaultTlsServer {
     public void notifyHandshakeComplete() throws IOException {
         super.notifyHandshakeComplete();
 
-        handshakeCompeteEvent.invoke(null);
+        handshakeCompleteEvent.invoke(null);
+    }
+
+    public static record OutgoingData(byte[] data, int offset, int length) {
+
     }
 }

@@ -1,91 +1,76 @@
 package net.betrayd.webspeak.webrtc.dtls;
 
-import net.betrayd.webspeak.webrtc.ice.IceTransport;
+import net.betrayd.webspeak.webrtc.Buffer;
 import org.bouncycastle.tls.DatagramTransport;
+import org.jitsi.utils.concurrent.ArrayBlockingQueueWithShutdown;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 public class DatagramTransportImpl implements DatagramTransport {
     public static final Logger LOGGER = LoggerFactory.getLogger(DatagramTransportImpl.class);
+    private final ArrayBlockingQueueWithShutdown<ByteBuffer> incomingProtocolData;
 
-    private final IceTransport iceTransport;
-    private final int receiveLimit;
-    private final int sendLimit;
+    private Consumer<Buffer> outgoingDataHandler = null;
 
-    volatile boolean closed = false;
-
-    //TODO: fix potential exploit and memory leak crash by adding some kind of limit here.
-    //^ I don't know I'm learning as I go.
-    private final BlockingQueue<byte[]> queue = new LinkedBlockingQueue<>(100);
-
-    public DatagramTransportImpl(IceTransport transport, int receiveLimit, int sendLimit) {
-        this.iceTransport = transport;
-        this.receiveLimit = receiveLimit;
-        this.sendLimit = sendLimit;
+    public DatagramTransportImpl(ArrayBlockingQueueWithShutdown<ByteBuffer> incomingProtocolData) {
+        this.incomingProtocolData = incomingProtocolData;
     }
 
-    public void offer(byte[] data, int offset, int length) {
-        if(closed){
-            return;
-        }
-        byte[] copy = new byte[length];
-        System.arraycopy(data, offset, copy, 0, length);
-        if (!queue.offer(copy)){
-            LOGGER.error("DLTS queue full. Dropping packet");
-        }
+    public void setOutgoingDataHandler(Consumer<Buffer> outgoingDataHandler) {
+        this.outgoingDataHandler = outgoingDataHandler;
     }
 
+    /**
+     * Receive limit computation copied from [org.bouncycastle.tls.UDPTransport]
+     */
     @Override
     public int getReceiveLimit() throws IOException {
-        return receiveLimit;
+        return 1500 - 20 - 8;
     }
 
     @Override
     public int receive(byte[] buf, int off, int len, int waitMillis) throws IOException {
+        ByteBuffer data;
         try {
-            byte[] dtlsPacket;
-            if(waitMillis > 0){
-                dtlsPacket = queue.poll(waitMillis, TimeUnit.MILLISECONDS);
-            }
-            else{
-                dtlsPacket = queue.take();
-            }
-
-            if (dtlsPacket != null && (!closed || dtlsPacket.length != 0/*poison pill*/)){
-                int copyLen = Math.min(len, dtlsPacket.length);
-                System.arraycopy(dtlsPacket, 0, buf, off, copyLen);
-                return copyLen;
-            }
+            data = incomingProtocolData.poll((long) waitMillis, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
             return -1;
         }
-        catch(InterruptedException e){
-            Thread.currentThread().interrupt();
-            throw new IOException("Interrupted while waiting for packet", e);
+        if (data == null) {
+            return -1;
         }
+        int length = Math.min(len, data.limit());
+        if (length < data.limit()) {
+            LOGGER.warn("assed buffer size {} was too small to hold incoming data size ({}); data was truncated", len, data.limit());
+        }
+        System.arraycopy(data.array(), data.arrayOffset(), buf, off, length);
+        //There is no actual impl of this in Jitsi. If we decide to add a buffer pool then re-implement
+        //BufferPool.returnBuffer(data.array());
+        return length;
     }
 
+    /**
+     * Send limit computation copied from [org.bouncycastle.tls.UDPTransport]
+     */
     @Override
     public int getSendLimit() throws IOException {
-        return sendLimit;
+        return 1500 - 84 - 8;
     }
 
     @Override
     public void send(byte[] buf, int off, int len) throws IOException {
-        if (!closed){
-            iceTransport.send(buf, off, len);
+        if(outgoingDataHandler != null) {
+            outgoingDataHandler.accept(new Buffer(buf, off, len));
         }
     }
 
     @Override
     public void close() throws IOException {
-        if (!closed) {
-            closed = true;
-            queue.offer(new byte[0]); // this is apparently a thing called a poison pill. It allows to kill the blocking thread early
-        }
+
     }
 }

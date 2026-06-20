@@ -1,7 +1,7 @@
 package net.betrayd.webspeak.webrtc;
 
-import net.betrayd.webspeak.webrtc.dtls.DatagramTransportImpl;
-import net.betrayd.webspeak.webrtc.dtls.DtlsServerImpl;
+import net.betrayd.webspeak.webrtc.dtls.old.DatagramTransportImpl;
+import net.betrayd.webspeak.webrtc.dtls.old.DtlsServerImpl;
 import net.betrayd.webspeak.webrtc.ice.IceCandidateParser;
 import net.betrayd.webspeak.webrtc.ice.IceStartData;
 import net.betrayd.webspeak.webrtc.ice.IceTransport;
@@ -13,7 +13,6 @@ import net.betrayd.webspeak.webrtc.tracks.RTCTrack;
 import org.bouncycastle.tls.DTLSServerProtocol;
 import org.bouncycastle.tls.DTLSTransport;
 import org.bouncycastle.tls.crypto.TlsCrypto;
-import org.bouncycastle.tls.crypto.impl.bc.BcTlsCrypto;
 import org.bouncycastle.tls.crypto.impl.jcajce.JcaTlsCryptoProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +24,7 @@ import java.security.cert.X509Certificate;
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 
 public class RTCConnection {
     public static final Logger LOGGER = LoggerFactory.getLogger(RTCConnection.class);
@@ -39,6 +39,9 @@ public class RTCConnection {
     //private final Map<Long, AudioTrack> audioTracksBySsrc = new ConcurrentHashMap<>();
 
     private final long sdpSessionId = new SecureRandom().nextLong() & 0x7FFFFFFFFFL;
+    private final ExecutorService handshakeExecutor;
+
+    private final TlsCrypto crypto;
 
     private int sdpVersion = 1; // incrememented every time we send a new offer
 
@@ -50,10 +53,15 @@ public class RTCConnection {
 
     private String localFingerprint;
 
-    public RTCConnection(IceTransport iceTransport, X509Certificate localCert, PrivateKey localPrivateKey) {
+    public RTCConnection(IceTransport iceTransport, ExecutorService handshakeExecutor, X509Certificate localCert, PrivateKey localPrivateKey) {
         this.iceTransport = iceTransport;
+        this.handshakeExecutor = handshakeExecutor;
         this.localCert = localCert;
         this.localPrivateKey = localPrivateKey;
+        this.crypto = new JcaTlsCryptoProvider().create(new SecureRandom());
+
+        //Instantiate early to catch aggressive WebRTC ClientHello packets. Probably won't work
+        this.datagramTransport = new DatagramTransportImpl(iceTransport, 2048, 1200);
 
         iceTransport.oneIceReady().addListener(v -> negotiateDtlsHandshake());
 
@@ -94,7 +102,7 @@ public class RTCConnection {
         }
 
         if(data != null){
-            iceTransport.addIceCandidate(IceCandidateParser.parse(iceCandidate.sdp()));
+            iceTransport.addIceCandidate(data);
         }
     }
 
@@ -128,7 +136,6 @@ public class RTCConnection {
     public void initiateSfuOffer(SignalingServer signalingServer) {
         //Don't re-initiate the fingerprint
         if (this.localFingerprint == null) {
-            TlsCrypto crypto = new JcaTlsCryptoProvider().create(new SecureRandom());
             DtlsServerImpl dtlsServer = new DtlsServerImpl(crypto, localCert, localPrivateKey);
             this.localFingerprint = dtlsServer.getLocalFingerprint();
         }
@@ -228,40 +235,34 @@ public class RTCConnection {
             return;
         }
         startedDtlsHandshake = true;
-        Thread dtlsThread = new Thread(() -> {
 
+        handshakeExecutor.submit(() -> {
             try {
                 LOGGER.info("Ice Connection ready state. Establishing DTLS handshake...");
 
-                this.datagramTransport = new DatagramTransportImpl(iceTransport, 2048, 2048);
-
-                TlsCrypto crypto = new BcTlsCrypto(new SecureRandom());
                 DtlsServerImpl dtlsServer = new DtlsServerImpl(crypto, localCert, localPrivateKey);
-
                 DTLSServerProtocol protocol = new DTLSServerProtocol();
 
                 this.dtlsTransport = protocol.accept(dtlsServer, datagramTransport);
 
                 LOGGER.info("DTLS handshake successful");
 
-            }catch(IOException e){
+            }catch(Exception e){
                 LOGGER.error("Negotiate DTLS handshake error",e);
             }
         });
-
-        dtlsThread.setDaemon(true);
-        dtlsThread.start();
     }
 
-    private void handleRawPacket(IceTransport.Buffer rawPacket) {
+    private void handleRawPacket(Buffer rawPacket) {
         if (rawPacket.length() > 0) {
             int firstByte = rawPacket.data()[rawPacket.offset()] & 0xFF;
             // 0 to 3 is STUN (Handled by ICE4J)
             // WebRTC Multiplexing rules: 20 to 63 is DTLS
+
             if (firstByte >= 20 && firstByte <= 63) {
                 //implement this somewhere
                 if(datagramTransport != null) {
-                datagramTransport.offer(rawPacket.data(), rawPacket.offset(), rawPacket.length());
+                    datagramTransport.offer(rawPacket.data(), rawPacket.offset(), rawPacket.length());
                 }else{
                     LOGGER.warn("DTLS packet sent without first creating");
                 }

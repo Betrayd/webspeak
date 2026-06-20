@@ -1,13 +1,15 @@
-//Large portions of this class were translated from jitsi-VideoBridge
+//Large portions of this class were translated from jitsi-videoBridge
 package net.betrayd.webspeak.webrtc.ice;
 
+import net.betrayd.webspeak.webrtc.Buffer;
 import net.betrayd.webspeak.event.Event;
+import net.betrayd.webspeak.webrtc.utils.TaskPools;
 import org.ice4j.Transport;
 import org.ice4j.TransportAddress;
 import org.ice4j.ice.*;
 import org.ice4j.ice.harvest.StunCandidateHarvester;
+import org.ice4j.socket.MultiplexingDatagramSocket;
 import org.ice4j.util.BufferHandler;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,22 +17,22 @@ import org.slf4j.LoggerFactory;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.IOException;
+import java.net.DatagramPacket;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class IceTransport {
     public static final Logger LOGGER = LoggerFactory.getLogger(IceTransport.class);
 
     private final Agent iceAgent;
-    private AtomicBoolean iceConnected = new AtomicBoolean(false);
+    private final boolean useUniquePorts;
+    private final AtomicBoolean iceConnected = new AtomicBoolean(false);
     private Instant lastPingTime = Instant.EPOCH;
     private ScheduledFuture<?> keepAliveTask;
+    private boolean stopped = false;
     @Nullable
     private Component iceComponent = null;
 
@@ -41,8 +43,12 @@ public class IceTransport {
     private final PropertyChangeListener iceStateChangedListener = this::iceStateChanged;
     private final PropertyChangeListener iceStreamChangedListener = this::iceStreamChanged;
 
-    public IceTransport(Collection<LocalCandidate> transportAddresses){
+    public IceTransport(Collection<LocalCandidate> transportAddresses, boolean useUniquePorts) {
+        this.useUniquePorts = useUniquePorts;
         iceAgent = new Agent();
+        if (useUniquePorts) {
+            iceAgent.setUseDynamicPorts(true);
+        }
         iceAgent.setPerformConsentFreshness(true);
         iceAgent.addStateChangeListener(iceStateChangedListener);
 
@@ -102,18 +108,18 @@ public class IceTransport {
      * This is mainly an internal API
      * @throws IOException if an error occurs
      */
-    public void init(ScheduledExecutorService sharedTimer) throws IOException {
+    public void init() throws IOException {
         IceMediaStream stream = iceAgent.createMediaStream("stream");
         stream.addPairChangeListener(iceStreamChangedListener);
         iceComponent = iceAgent.createComponent(stream, KeepAliveStrategy.SELECTED_ONLY, true);
         iceComponent.setBufferCallback(new BufferHandler() {
             @Override
-            public void handleBuffer(@NotNull org.ice4j.util.Buffer buffer) {
+            public void handleBuffer(org.ice4j.util.Buffer buffer) {
                 rawPacketReceivedEvent.invoke(new Buffer(buffer.getBuffer(), buffer.getOffset(), buffer.getLength()));
             }
         });
 
-        keepAliveTask = sharedTimer.scheduleAtFixedRate(() -> {
+        keepAliveTask = TaskPools.SCHEDULED_POOL.scheduleAtFixedRate(() -> {
             if (getIceConnected()) {
                 long secondsSincePing = Duration.between(lastPingTime, Instant.now()).getSeconds();
 
@@ -233,6 +239,7 @@ public class IceTransport {
      * for our design philosophy
      */
     public void stop(){
+        stopped = true;
         if (keepAliveTask != null) {
             keepAliveTask.cancel(false);
         }
@@ -285,6 +292,33 @@ public class IceTransport {
             return true;
     }
 
+    private void startReadingData(){
+        if(iceComponent == null){
+            LOGGER.error("read data called before iceComponent initialized. Use init First.");
+            return;
+        }
+        MultiplexingDatagramSocket socket = iceComponent.getSocket();
+
+
+        byte[] receiveBuf = new byte[2048];
+        DatagramPacket packet = new DatagramPacket(receiveBuf, 0, receiveBuf.length);
+
+        while(!stopped){
+                try {
+                    socket.receive(packet);
+                }
+                catch (IOException e) {
+                    LOGGER.error("Error reading packet. Closing...", e);
+                    stop();
+                    break;
+                }
+
+                Buffer buffer = new Buffer(packet.getData(), packet.getOffset(), packet.getLength());
+
+                rawPacketReceivedEvent.invoke(buffer);
+            }
+    }
+
     private void iceStateChanged(PropertyChangeEvent event) {
         IceProcessingState oldState = (IceProcessingState) event.getOldValue();
         IceProcessingState newState = (IceProcessingState) event.getNewValue();
@@ -292,6 +326,10 @@ public class IceTransport {
         if(newState == IceProcessingState.COMPLETED){
             if(iceConnected.compareAndSet(false, true)){
                 iceConnectionStateChangedEvent.invoke(IceConnectionState.CONNECTED);
+
+                if(useUniquePorts){
+                    TaskPools.IO_POOL.submit(this::startReadingData);
+                }
             }
         } else if(oldState == IceProcessingState.RUNNING && newState == IceProcessingState.TERMINATED){
             iceConnectionStateChangedEvent.invoke(IceConnectionState.STOPPED);
@@ -314,10 +352,5 @@ public class IceTransport {
         CONNECTED,
         STOPPED,
         FAILED
-    }
-
-    //this may cause audio jitter. Passing Buffer dirrectly from ice4j may be bettedr
-    public static record Buffer(byte[] data, int offset, int length){
-
     }
 }

@@ -1,4 +1,4 @@
-package net.betrayd.webspeak.webrtc.dtls;
+package net.betrayd.webspeak.webrtc.dtls.old;
 
 import java.security.MessageDigest;
 import java.security.cert.X509Certificate;

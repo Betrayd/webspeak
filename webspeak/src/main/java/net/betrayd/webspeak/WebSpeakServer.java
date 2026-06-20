@@ -15,10 +15,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 
 /**
  * <p>The main server responsible for WebSpeak. While it doesn't handle in-band or out-of-band communications directly,
@@ -93,8 +90,13 @@ public class WebSpeakServer implements Executor {
 
         }
 
+        //this should be a object property as it needs to be shutdown in stop
+        ExecutorService handshakePool = Executors.newCachedThreadPool();
+        //
+        ScheduledExecutorService keepAliveExecuter = Executors.newSingleThreadScheduledExecutor();
+
         //Create the RTC manager
-        this.rtcManager = new RTCManager(localCandidates, serverBackend, this, Executors.newSingleThreadScheduledExecutor());
+        this.rtcManager = new RTCManager(localCandidates, serverBackend, this, handshakePool, keepAliveExecuter);
 
         serverBackend.getOnClose().addListener(this::onStop);
     }

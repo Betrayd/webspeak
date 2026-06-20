@@ -21,6 +21,7 @@ import java.security.*;
 import java.security.cert.X509Certificate;
 import java.util.Collection;
 import java.util.Date;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 
 public class RTCManager {
@@ -28,16 +29,18 @@ public class RTCManager {
     public final ServerBackend serverBackend;
     public final WebSpeakServer server;
 
+    private final ExecutorService handshakeExecutor;
     private final ScheduledExecutorService keepAliveThread;
 
     // Permanent cryptographic identities for this server session
     private final PrivateKey localPrivateKey;
     private final X509Certificate localCertificate;
 
-    public RTCManager(Collection<LocalCandidate> localCandidates, ServerBackend serverBackend, WebSpeakServer server, ScheduledExecutorService thread) {
+    public RTCManager(Collection<LocalCandidate> localCandidates, ServerBackend serverBackend, WebSpeakServer server, ExecutorService handshakeExecutor, ScheduledExecutorService keepAliveExecuter) {
         this.serverBackend = serverBackend;
         this.server = server;
-        this.keepAliveThread = thread;
+        this.handshakeExecutor = handshakeExecutor;
+        this.keepAliveThread = keepAliveExecuter;
 
         // 1. Explicitly register Bouncy Castle if it hasn't been done yet
         if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
@@ -74,7 +77,7 @@ public class RTCManager {
             return;
         }
 
-        RTCConnection rtcConnection = new RTCConnection(transport, localCertificate, localPrivateKey);
+        RTCConnection rtcConnection = new RTCConnection(transport, handshakeExecutor, localCertificate, localPrivateKey);
         BackendSignaling webSocketSignaling = new BackendSignaling(sessionID, serverBackend);
         SignalingServer signalingServer = new SignalingServer(rtcConnection, webSocketSignaling);
 
