@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 public class DtlsStack {
     static {
@@ -68,7 +69,7 @@ public class DtlsStack {
     }
 
     private final ArrayBlockingQueueWithShutdown<ByteBuffer> incomingProtocolData = new ArrayBlockingQueueWithShutdown<>(QUEUE_SIZE, true);
-    private final DatagramTransportImpl datagramTransport = new DatagramTransportImpl(incomingProtocolData);;
+    private final DatagramTransportImpl datagramTransport;
     private final CountDownLatch roleIsSet = new CountDownLatch(1);
     /**
      * A buffer we'll use to receive data from [dtlsTransport].
@@ -79,7 +80,6 @@ public class DtlsStack {
 
     private DTLSTransport dtlsTransport = null;
 
-
     private CertificateInfo certificateInfo;
 
     private DtlsRole role;
@@ -87,11 +87,33 @@ public class DtlsStack {
     private Map<String, List<String>> remoteFingerprints = Map.of();
 
     public DtlsStack() throws RuntimeException {
-
+        datagramTransport = new DatagramTransportImpl(incomingProtocolData);
     }
 
     public Event<DtlsServer.HandshakeCompleteData> onHandshakeComplete(){
         return handshakeCompleteDataEvent;
+    }
+
+    public Event<Buffer> onIncomingProtocolDataRecieved(){return incomingProtocolDataRecievedEvent;}
+
+    public DtlsRole getRole(){
+        return role;
+    }
+
+    public String getLocalFingerprintHashFunction(){
+        return certificateInfo.localFingerprintHashFunction();
+    }
+
+    public String getLocalFingerprint(){
+        return certificateInfo.LocalFingerPrint();
+    }
+
+    public void setOutgoingDataHandler(Consumer<Buffer> outgoingDataHandler){
+        this.datagramTransport.setOutgoingDataHandler(outgoingDataHandler);
+    }
+
+    public void setRemoteFingerprints(Map<String, List<String>> remoteFingerprints){
+        this.remoteFingerprints = remoteFingerprints;
     }
 
     public void actAsServer(){
@@ -109,6 +131,21 @@ public class DtlsStack {
         dtlsServer.onHandshakeComplete().addListener(handshakeCompleteDataEvent::invoke);
         role = dtlsServer;
 
+        roleIsSet.countDown();
+    }
+
+    public void actAsClient(){
+        role = new DtlsClient(
+                datagramTransport,
+                certificateInfo,
+                certificate -> {
+                    try {
+                        verifyAndValidateRemoteCandidates(certificate);
+                    } catch (DtlsException | OperatorCreationException e) {
+                        throw new IOException(e);
+                    }
+                }
+        );
         roleIsSet.countDown();
     }
 
@@ -150,7 +187,7 @@ public class DtlsStack {
         incomingProtocolData.clear();
     }
 
-    public void sendApplicationData(byte[] data, int offset, int length) {
+    public void sendApplicationData(byte[] data, int offset, int length) throws IOException {
         if(dtlsTransport != null){
             dtlsTransport.send(data, offset, length);
         }
@@ -192,7 +229,14 @@ public class DtlsStack {
      * won't necessarily be done with it by the time this method completes.
      */
     public void processIncomingProtocolData(byte[] data, int offset, int length) {
-        IN PROGRESS WORKING HERE
+        byte[] bufferCopy = new byte[length];
+        System.arraycopy(data, offset, bufferCopy, 0, length);
+
+        if(!incomingProtocolData.offer(ByteBuffer.wrap(bufferCopy, 0, length))){
+            if (!incomingProtocolData.isShutdown()) {
+                LOGGER.warn("DTLS stack queue full, dropping packet");
+            }
+        }
     }
 
     private void verifyAndValidateRemoteCandidates(Certificate remoteCertificate) throws IOException, OperatorCreationException, DtlsException {

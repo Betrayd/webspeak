@@ -21,7 +21,7 @@ public class DtlsServer implements DtlsRole {
     private final Event.Invokable<HandshakeCompleteData> handshakeCompleteEvent = Event.create();
     private final TlsServerImpl tlsServer;
 
-    public DtlsServer(DatagramTransport transport, CertificateInfo certificateInfo, TlsServerImpl.VerifyCertificate verifyRemoteCandidates) {
+    public DtlsServer(DatagramTransport transport, CertificateInfo certificateInfo, TlsImplVerifyCertificate verifyRemoteCandidates) {
         this.transport = transport;
 
         tlsServer = new TlsServerImpl(certificateInfo, verifyRemoteCandidates);
