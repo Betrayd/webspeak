@@ -43,7 +43,7 @@ public class DtlsTransport {
 
     private boolean dtlsHandshakeComplete = false;
 
-    private DtlsTransport() {
+    public DtlsTransport() {
         dtlsStack = new DtlsStack();
         dtlsStack.onHandshakeComplete().addListener((data) -> {
             dtlsHandshakeComplete = true;
@@ -137,8 +137,8 @@ public class DtlsTransport {
         sdp.append(dtlsStack.getLocalFingerprint()).append("\r\n");
     }
 
-    public void enqueueBuffer(Buffer buffer) {
-        dtlsQueue.add(buffer);
+    public void enqueueBuffer(net.betrayd.webspeak.webrtc.Buffer buffer) {
+        dtlsQueue.add(new Buffer(buffer.data(), buffer.offset(), buffer.length()));
     }
 
     /**

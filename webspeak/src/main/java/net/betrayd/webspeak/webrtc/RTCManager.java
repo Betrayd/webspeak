@@ -59,7 +59,7 @@ public class RTCManager {
         serverBackend.getOnClientConnected().addListener(sessionID -> onClientConnected(sessionID, localCandidates));
     }
 
-    private void onClientConnected(String sessionID, Collection<LocalCandidate> localCandidates) {
+    private void onClientConnected(String sessionID, Collection<LocalCandidate> localCandidates, boolean useUniquePorts) {
         WebSpeakPlayer player = server.getPlayers().get(sessionID);
 
         if(player == null) {
@@ -68,7 +68,7 @@ public class RTCManager {
         }
 
 
-        IceTransport transport = new IceTransport(localCandidates);
+        IceTransport transport = new IceTransport(localCandidates,useUniquePorts);
         try{
             transport.init(keepAliveThread);
         }

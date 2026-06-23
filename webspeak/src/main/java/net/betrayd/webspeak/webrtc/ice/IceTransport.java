@@ -87,6 +87,7 @@ public class IceTransport {
 
     /**
      * Fired when this ice channel receives some kind of data.
+     * <p>Make sure to copy out the data if you plan on using it later as the buffer is re-used</p>
      * <p>This data is fully garbage and really should only be used internally as we don't even know what webRTC stream this is attached to</p>
      * @return
      */
@@ -313,6 +314,7 @@ public class IceTransport {
                     break;
                 }
 
+                //may want to copy out data. Shouldn't matter here since invoke will hopefully block the thread until the method recieves
                 Buffer buffer = new Buffer(packet.getData(), packet.getOffset(), packet.getLength());
 
                 rawPacketReceivedEvent.invoke(buffer);

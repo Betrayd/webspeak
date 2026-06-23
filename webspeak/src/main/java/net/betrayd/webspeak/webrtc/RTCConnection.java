@@ -1,7 +1,7 @@
 package net.betrayd.webspeak.webrtc;
 
-import net.betrayd.webspeak.webrtc.dtls.old.DatagramTransportImpl;
-import net.betrayd.webspeak.webrtc.dtls.old.DtlsServerImpl;
+import net.betrayd.webspeak.webrtc.dtls.DtlsServer;
+import net.betrayd.webspeak.webrtc.dtls.DtlsTransport;
 import net.betrayd.webspeak.webrtc.ice.IceCandidateParser;
 import net.betrayd.webspeak.webrtc.ice.IceStartData;
 import net.betrayd.webspeak.webrtc.ice.IceTransport;
@@ -10,62 +10,52 @@ import net.betrayd.webspeak.webrtc.signaling.RTCSignalingMessages;
 import net.betrayd.webspeak.webrtc.signaling.SignalingServer;
 import net.betrayd.webspeak.webrtc.tracks.DataChannelTrack;
 import net.betrayd.webspeak.webrtc.tracks.RTCTrack;
-import org.bouncycastle.tls.DTLSServerProtocol;
-import org.bouncycastle.tls.DTLSTransport;
-import org.bouncycastle.tls.crypto.TlsCrypto;
-import org.bouncycastle.tls.crypto.impl.jcajce.JcaTlsCryptoProvider;
+import net.betrayd.webspeak.webrtc.utils.RawPacketUtils;
+import net.betrayd.webspeak.webrtc.utils.TaskPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.security.PrivateKey;
 import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
 
+/**
+ * Doesn't currently compile as the pipeline is being changed
+ */
 public class RTCConnection {
     public static final Logger LOGGER = LoggerFactory.getLogger(RTCConnection.class);
 
     private final IceTransport iceTransport;
-
-    private final X509Certificate localCert;
-    private final PrivateKey localPrivateKey;
+    private final DtlsTransport dtlsTransport;
 
     private final Map<String, RTCTrack> tracks = new ConcurrentHashMap<>();
     // Fast lookup map for routing incoming audio packets by SSRC
     //private final Map<Long, AudioTrack> audioTracksBySsrc = new ConcurrentHashMap<>();
+    int sdpVersion = 1;
 
     private final long sdpSessionId = new SecureRandom().nextLong() & 0x7FFFFFFFFFL;
-    private final ExecutorService handshakeExecutor;
 
-    private final TlsCrypto crypto;
-
-    private int sdpVersion = 1; // incrememented every time we send a new offer
-
-    private boolean startedDtlsHandshake = false;
-    private boolean srtpNegotiated = false;
-
-    private DatagramTransportImpl datagramTransport;
-    private DTLSTransport dtlsTransport;
-
-    private String localFingerprint;
-
-    public RTCConnection(IceTransport iceTransport, ExecutorService handshakeExecutor, X509Certificate localCert, PrivateKey localPrivateKey) {
+    public RTCConnection(IceTransport iceTransport, DtlsTransport dtlsTransport) {
         this.iceTransport = iceTransport;
-        this.handshakeExecutor = handshakeExecutor;
-        this.localCert = localCert;
-        this.localPrivateKey = localPrivateKey;
-        this.crypto = new JcaTlsCryptoProvider().create(new SecureRandom());
+        this.dtlsTransport = dtlsTransport;
 
-        //Instantiate early to catch aggressive WebRTC ClientHello packets. Probably won't work
-        this.datagramTransport = new DatagramTransportImpl(iceTransport, 2048, 1200);
-
-        iceTransport.oneIceReady().addListener(v -> negotiateDtlsHandshake());
+        iceTransport.oneIceReady().addListener(v -> onIceReady());
 
         iceTransport.onRawPacketReceived().addListener(this::handleRawPacket);
+
+        dtlsTransport.onDtlsHandshakeComplete().addListener(this::onDtlsHandshakeComplete);
+
+        dtlsTransport.onDtlsAppDataRecieved().addListener(this::dtlsAppPacketReceived);
+
+        dtlsTransport.setOutgoingDataHandler(buffer -> {
+            try {
+                iceTransport.send(buffer.data(), buffer.offset(), buffer.length());
+            } catch (IOException e) {
+                LOGGER.warn("Error sending DTLS data through ICE", e);
+            }
+        });
 
         //add a default track since webRTC doesn't work without one
         DataChannelTrack defaultTrack = new DataChannelTrack("default", "Default");
@@ -76,6 +66,18 @@ public class RTCConnection {
         if(sessionDescription.getSdpType() != RTCSdpType.ANSWER){
             //Non answers are currently unhandled...
             return;
+        }
+
+        String sdp = sessionDescription.sdp();
+
+        // Extract the setup role from the remote SDP so the DTLS stack knows how to act
+        if (sdp.contains("a=setup:active")) {
+            dtlsTransport.setSetupAttribute("active");
+        } else if (sdp.contains("a=setup:passive")) {
+            dtlsTransport.setSetupAttribute("passive");
+        } else if (sdp.contains("a=setup:actpass")) {
+            // If the remote answers with actpass, we should default to acting as the client (active)
+            dtlsTransport.setSetupAttribute("passive");
         }
 
         IceStartData data = null;
@@ -134,21 +136,12 @@ public class RTCConnection {
     }
 
     public void initiateSfuOffer(SignalingServer signalingServer) {
-        //Don't re-initiate the fingerprint
-        if (this.localFingerprint == null) {
-            DtlsServerImpl dtlsServer = new DtlsServerImpl(crypto, localCert, localPrivateKey);
-            this.localFingerprint = dtlsServer.getLocalFingerprint();
-        }
-
-        // 1. Extract the local parameters that ice4j gathered during IceTransport.init()
         String localUfrag = iceTransport.getLocalUfrag();
         String localPwd = iceTransport.getLocalPassword();
         String localCandidates = iceTransport.getLocalCandidatesAsSdp();
 
-        // 2. Assemble the full WebRTC-compliant SDP Offer string
-        String generatedSdpOffer = buildLocalSdpOffer(localUfrag, localPwd, localFingerprint, localCandidates);
+        String generatedSdpOffer = buildLocalSdpOffer(localUfrag, localPwd, localCandidates);
 
-        // 3. Dispatch the Offer to the client (assuming 0 represents RTCSdpType.OFFER)
         RTCSignalingMessages.sessionDescription offerPacket =
                 new RTCSignalingMessages.sessionDescription(0, generatedSdpOffer, "sfu-stream");
 
@@ -157,13 +150,48 @@ public class RTCConnection {
         sdpVersion++;
     }
 
+    public void close() {
+        dtlsTransport.stop();
+        iceTransport.stop();
+    }
+
+    private void onDtlsHandshakeComplete(DtlsServer.HandshakeCompleteData data) {
+        LOGGER.info("DTLS handshake complete");
+
+
+    }
+
+    private void dtlsAppPacketReceived(Buffer buffer){
+        LOGGER.warn("dtlsAppPacketReceived!!!! length: {}", buffer.length());
+    }
+
+    private void onIceReady(){
+        LOGGER.info("ICE connected");
+
+        TaskPools.IO_POOL.execute(dtlsTransport::startDtlsHandshake);
+    }
+
+    private void handleRawPacket(Buffer buffer){
+        if (buffer.length() > 0) {
+            int firstByte = buffer.data()[buffer.offset()] & 0xFF;
+
+            if(RawPacketUtils.isDTLSPacket(buffer)){
+                byte[] copiedData = new byte[buffer.length()];
+                System.arraycopy(buffer.data(), buffer.offset(), copiedData, 0, buffer.length());
+                Buffer clonedBuffer = new Buffer(copiedData, 0, buffer.length());
+
+                dtlsTransport.enqueueBuffer(clonedBuffer);
+            }
+        }
+
+
+    }
+
     // Add this helper to construct the SDP string using the variables
-    private String buildLocalSdpOffer(String ufrag, String password, String fingerprint, String candidatesSdp) {
+    private String buildLocalSdpOffer(String ufrag, String password, String candidatesSdp) {
         StringBuilder sdp = new StringBuilder();
 
-        // Base Session Description Protocol Headers
         sdp.append("v=0\r\n");
-        // The version field (3rd parameter) increments on renegotiation
         sdp.append("o=- ").append(sdpSessionId).append(" ").append(sdpVersion).append(" IN IP4 0.0.0.0\r\n");
         sdp.append("s=-\r\n");
         sdp.append("t=0 0\r\n");
@@ -172,125 +200,31 @@ public class RTCConnection {
         int midCounter = 0;
         boolean hasDataChannel = false;
 
-        // Append Media Blocks dynamically for each registered track
         for (RTCTrack track : getTracks()) {
-            //No audio tracks yet
-            /*if (track instanceof AudioTrack) {
-                AudioTrack audioTrack = (AudioTrack) track;
-                sdp.append("m=audio 9 UDP/TLS/RTP/SAVPF ").append(audioTrack.getPayloadType()).append("\r\n");
-                sdp.append("c=IN IP4 0.0.0.0\r\n");
-                sdp.append("a=setup:actpass\r\n"); // SFU provides actpass, client answers active
-                sdp.append("a=mid:").append(midCounter).append("\r\n");
-                sdp.append("a=rtpmap:").append(audioTrack.getPayloadType()).append(" opus/48000/2\r\n");
-                sdp.append("a=ice-ufrag:").append(ufrag).append("\r\n");
-                sdp.append("a=ice-pwd:").append(password).append("\r\n");
-                sdp.append("a=fingerprint:sha-256 ").append(fingerprint).append("\r\n");
-                sdp.append("a=msid:sfu-session ").append(track.getId()).append("\r\n");
-                sdp.append("a=ssrc:").append(audioTrack.getSsrc()).append(" cname:sfu-audio\r\n");
-                sdp.append("a=sendonly\r\n"); // SFU is sending this audio track to the client
-
-                midCounter++;
-            } else*/
             if (track instanceof DataChannelTrack) {
                 hasDataChannel = true;
             }
         }
 
-        // Standard WebRTC aggregates all individual Data Channels into a single SCTP m-line block
         if (hasDataChannel) {
             sdp.append("m=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\n");
             sdp.append("c=IN IP4 0.0.0.0\r\n");
-            sdp.append("a=setup:actpass\r\n");
             sdp.append("a=mid:").append(midCounter).append("\r\n");
-            sdp.append("a=sctp-port:5000\r\n"); // Default WebRTC data channel port mapping
+            sdp.append("a=sctp-port:5000\r\n");
+
+            // DtlsTransport dynamically injects "a=setup:" and "a=fingerprint:" lines
+            dtlsTransport.describe(sdp);
+
             sdp.append("a=ice-ufrag:").append(ufrag).append("\r\n");
             sdp.append("a=ice-pwd:").append(password).append("\r\n");
-            sdp.append("a=fingerprint:sha-256 ").append(fingerprint).append("\r\n");
 
-            //update in case we add more for some reason (we won't)
             midCounter++;
-        }
-        else{
-            LOGGER.error("Something went catastrophically wrong. You have reached an unreachable state. Good job. (No data channel on establish RTC connection)");
+        } else {
+            LOGGER.error("Unreachable state: No data channel found on establish RTC connection");
         }
 
-        //ice candidates added to the end
         sdp.append(candidatesSdp);
 
         return sdp.toString();
-    }
-
-    public void close() {
-        if (dtlsTransport != null) {
-            try {
-                dtlsTransport.close();
-            } catch (IOException ignored) {}
-        }
-        iceTransport.stop();
-    }
-
-    private void negotiateDtlsHandshake(){
-        // accept() blocks waiting for queues. We MUST offload it to a background thread
-        if(startedDtlsHandshake){
-            return;
-        }
-        startedDtlsHandshake = true;
-
-        handshakeExecutor.submit(() -> {
-            try {
-                LOGGER.info("Ice Connection ready state. Establishing DTLS handshake...");
-
-                DtlsServerImpl dtlsServer = new DtlsServerImpl(crypto, localCert, localPrivateKey);
-                DTLSServerProtocol protocol = new DTLSServerProtocol();
-
-                this.dtlsTransport = protocol.accept(dtlsServer, datagramTransport);
-
-                LOGGER.info("DTLS handshake successful");
-
-            }catch(Exception e){
-                LOGGER.error("Negotiate DTLS handshake error",e);
-            }
-        });
-    }
-
-    private void handleRawPacket(Buffer rawPacket) {
-        if (rawPacket.length() > 0) {
-            int firstByte = rawPacket.data()[rawPacket.offset()] & 0xFF;
-            // 0 to 3 is STUN (Handled by ICE4J)
-            // WebRTC Multiplexing rules: 20 to 63 is DTLS
-
-            if (firstByte >= 20 && firstByte <= 63) {
-                //implement this somewhere
-                if(datagramTransport != null) {
-                    datagramTransport.offer(rawPacket.data(), rawPacket.offset(), rawPacket.length());
-                }else{
-                    LOGGER.warn("DTLS packet sent without first creating");
-                }
-            }
-            // 128 to 191 is RTP/RTCP (Forward directly to audio pipeline)
-            else if (firstByte > 127 && firstByte < 192) {
-                boolean isRtcp = (rawPacket.data()[rawPacket.offset() + 1] & 0xFF) >= 192 && (rawPacket.data()[rawPacket.offset() + 1] & 0xFF) <= 223;
-
-                if (isRtcp) {
-                    // Handle SRTP decryption for RTCP
-                } else {
-                    // 1. Decrypt the SRTP packet using keys from getSrtpKeyingMaterial()
-                    // byte[] decryptedRtp = srtpContext.unprotect(rawPacket);
-
-                    // 2. Read the SSRC from bytes 8-11 of the decrypted RTP header
-                    // long ssrc = readSsrc(decryptedRtp);
-
-                    // 3. Route to the correct audio track
-                    // AudioTrack targetTrack = audioTracksBySsrc.get(ssrc);
-                    // if (targetTrack != null) {
-                    //     targetTrack.onRtpPacketReceived(decryptedRtp);
-                    // }
-                }
-            }
-        }
-    }
-
-    private void handSRTPKey(){
-        LOGGER.info("Handing SRTP Key");
     }
 }
