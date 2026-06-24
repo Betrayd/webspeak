@@ -155,8 +155,7 @@ public class DtlsUtils {
                 return;
             }
         }
-
-        throw new DtlsException("No fingerprint declared over the signaling path with any of the accepted hash functions");
+        throw new DtlsException("No fingerprint declared over the signaling path with any of the accepted hash functions: [Certificate]:" + certificate + ", [Fingerprint]: Remote: " + remoteFingerprints + ", Accepted: " + DtlsConfig.getAcceptedFingerprintHashFunctions());
     }
 
     /**
@@ -217,7 +216,7 @@ public class DtlsUtils {
      * as a [String]
      */
     private static String getFingerprint(Certificate certificate, String hashFunction) throws OperatorCreationException, IOException {
-        AlgorithmIdentifier digAlgId = DefaultDigestAlgorithmIdentifierFinder.INSTANCE.find(hashFunction);
+        AlgorithmIdentifier digAlgId = DefaultDigestAlgorithmIdentifierFinder.INSTANCE.find(hashFunction.toUpperCase());
         ExtendedDigest digest = BcDefaultDigestProvider.INSTANCE.get(digAlgId);
         byte[] input = certificate.getEncoded(ASN1Encoding.DER);
         byte[] output = new byte[digest.getDigestSize()];

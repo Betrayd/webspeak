@@ -87,6 +87,7 @@ public class DtlsStack {
     private Map<String, List<String>> remoteFingerprints = Map.of();
 
     public DtlsStack() throws RuntimeException {
+        certificateInfo = getGlobalCertificateInfo();
         datagramTransport = new DatagramTransportImpl(incomingProtocolData);
     }
 

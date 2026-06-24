@@ -80,6 +80,25 @@ public class RTCConnection {
             dtlsTransport.setSetupAttribute("passive");
         }
 
+        Map<String, java.util.List<String>> remoteFingerprints = new java.util.HashMap<>();
+        for (String line : sdp.split("\r?\n")) {
+            if (line.startsWith("a=fingerprint:")) {
+                // Splits "sha-256 97:1D:89..." into ["sha-256", "97:1D:89..."]
+                String[] parts = line.substring(14).trim().split("\\s+");
+                if (parts.length == 2) {
+                    String hashFunction = parts[0].toLowerCase();
+                    String hashValue = parts[1];
+                    remoteFingerprints.computeIfAbsent(hashFunction, k -> new java.util.ArrayList<>()).add(hashValue);
+                }
+            }
+        }
+
+        if (!remoteFingerprints.isEmpty()) {
+            dtlsTransport.setRemoteFingerprints(remoteFingerprints);
+        } else {
+            LOGGER.warn("No fingerprint found in remote SDP! DTLS will likely fail.");
+        }
+
         IceStartData data = null;
         try {
             data = IceStartData.fromSdp(sessionDescription.sdp());

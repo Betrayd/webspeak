@@ -90,13 +90,9 @@ public class WebSpeakServer implements Executor {
 
         }
 
-        //this should be a object property as it needs to be shutdown in stop
-        ExecutorService handshakePool = Executors.newCachedThreadPool();
-        //
-        ScheduledExecutorService keepAliveExecuter = Executors.newSingleThreadScheduledExecutor();
-
         //Create the RTC manager
-        this.rtcManager = new RTCManager(localCandidates, serverBackend, this, handshakePool, keepAliveExecuter);
+        //useUniquePorts should be configurable in config. Maybe even different per connection but that is probably overkill
+        this.rtcManager = new RTCManager(localCandidates, serverBackend, this, true);
 
         serverBackend.getOnClose().addListener(this::onStop);
     }

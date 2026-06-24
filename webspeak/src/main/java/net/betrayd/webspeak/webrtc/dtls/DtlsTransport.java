@@ -22,12 +22,16 @@ public class DtlsTransport {
         @Override
         public boolean handlePacket(Object o) {
             try {
-
-                return true;
+                if (o instanceof Buffer buffer) {
+                    dtlsDataRecieved(buffer.getBuffer(), buffer.getOffset(), buffer.getLength());
+                    return true;
+                }
             } catch (Exception e) {
                 LOGGER.warn("Failed to handle DTLS data", e);
                 return false;
             }
+            LOGGER.warn("Packet buffer received data not of type Buffer!");
+            return false;
         }
     }, TaskPools.IO_POOL);
     /*
@@ -44,6 +48,7 @@ public class DtlsTransport {
     private boolean dtlsHandshakeComplete = false;
 
     public DtlsTransport() {
+        //TODO: this should be in a try catch as it can fail
         dtlsStack = new DtlsStack();
         dtlsStack.onHandshakeComplete().addListener((data) -> {
             dtlsHandshakeComplete = true;
@@ -134,7 +139,6 @@ public class DtlsTransport {
                 .append(" ")
                 .append(dtlsStack.getLocalFingerprint())
                 .append("\r\n");
-        sdp.append(dtlsStack.getLocalFingerprint()).append("\r\n");
     }
 
     public void enqueueBuffer(net.betrayd.webspeak.webrtc.Buffer buffer) {
