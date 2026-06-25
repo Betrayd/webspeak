@@ -85,17 +85,18 @@ public class DtlsTransport {
         }
     }
 
+    //TODO: make this not a string so that it's harder to make mistakes
     public void setSetupAttribute(@Nullable String setupAttr) {
         if(setupAttr == null || setupAttr.isEmpty()){
             return;
         }
         switch(setupAttr.toLowerCase()){
             case "active":
-                LOGGER.info("The remote side is acting as DTLS client, we'll act as server");
+                LOGGER.debug("The remote side is acting as DTLS client, we'll act as server");
                 dtlsStack.actAsServer();
                 break;
             case "passive":
-                LOGGER.info("The remote side is acting as DTLS server, we'll act as client");
+                LOGGER.debug("The remote side is acting as DTLS server, we'll act as client");
                 dtlsStack.actAsClient();
                 break;
             default:

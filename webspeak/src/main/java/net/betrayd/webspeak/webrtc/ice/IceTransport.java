@@ -30,7 +30,7 @@ public class IceTransport {
     private final Agent iceAgent;
     private final boolean useUniquePorts;
     private final AtomicBoolean iceConnected = new AtomicBoolean(false);
-    private Instant lastPingTime = Instant.EPOCH;
+    private Instant lastPingTime = Instant.now();
     private ScheduledFuture<?> keepAliveTask;
     private boolean stopped = false;
     @Nullable
@@ -132,6 +132,9 @@ public class IceTransport {
                 }
             }
         }, 5, 5, TimeUnit.SECONDS);
+
+        LOGGER.debug("ICE initialized: localUfrag={}, useUniquePorts={}", getLocalUfrag(), useUniquePorts);
+        LOGGER.debug("Local ICE candidates gathered: count={}", iceComponent.getLocalCandidateCount());
     }
 
     /**
@@ -187,6 +190,12 @@ public class IceTransport {
             LOGGER.error("start called before iceComponent initialized. Use init First.");
             return;
         }
+        LOGGER.info(
+                "Starting/Updating remote ICE: remoteUfrag={}, candidateCount={}, currentState={}",
+                data.ufrag(),
+                data.iceCandidates().size(),
+                iceAgent.getState()
+        );
 
         IceMediaStream stream = getCurrentIceMediaStream();
         stream.setRemoteUfrag(data.ufrag());
@@ -205,6 +214,13 @@ public class IceTransport {
                 addedCount++;
             }
         }
+
+        LOGGER.debug(
+                "Remote ICE candidates added: added={}, totalRemote={}",
+                addedCount,
+                iceComponent.getRemoteCandidateCount()
+        );
+
 
         if(running){
             if (addedCount == 0) {
@@ -230,6 +246,8 @@ public class IceTransport {
             Isn't that just what I'm doing?
             Well, either way I'm not changing it right now because this pipeline both terrifies me, and I'm tired
             */
+            LOGGER.info("Starting ICE connectivity establishment");
+
             iceAgent.startConnectivityEstablishment();
         }
     }
@@ -278,9 +296,21 @@ public class IceTransport {
                 return false;
             }
 
-            //Eventually this should probably be a full parser, but for now it works well enough as we only can have one stream/component
+            LOGGER.debug(
+                    "Adding remote ICE candidate: foundation={}, type={}, address={}:{}, priority={}, state={}",
+                    parsed.foundation(),
+                    parsed.type(),
+                    parsed.ip(),
+                    parsed.port(),
+                    parsed.priority(),
+                    iceAgent.getState()
+            );
+
+
+        //Eventually this should probably be a full parser, but for now it works well enough as we only can have one stream/component
             Component component = iceComponent;
 
+            //TODO: make sure that ice4j can resolve the parsed IP
             TransportAddress transportAddress = new TransportAddress(parsed.ip(), parsed.port(), Transport.UDP);
 
             RemoteCandidate remoteCandidate = new RemoteCandidate(transportAddress, component, CandidateType.parse(parsed.type()), parsed.foundation(), parsed.priority(), null);
@@ -324,9 +354,11 @@ public class IceTransport {
     private void iceStateChanged(PropertyChangeEvent event) {
         IceProcessingState oldState = (IceProcessingState) event.getOldValue();
         IceProcessingState newState = (IceProcessingState) event.getNewValue();
+        LOGGER.info("ICE state changed: {} -> {}", oldState, newState);
 
         if(newState == IceProcessingState.COMPLETED){
             if(iceConnected.compareAndSet(false, true)){
+                LOGGER.info("ICE connected/completed");
                 iceConnectionStateChangedEvent.invoke(IceConnectionState.CONNECTED);
 
                 if(useUniquePorts){
@@ -343,6 +375,8 @@ public class IceTransport {
 
     private void iceStreamChanged(PropertyChangeEvent event){
         if(IceMediaStream.PROPERTY_PAIR_VALIDATED.equals(event.getPropertyName())){
+            LOGGER.debug("ICE candidate pair validated");
+            //TODO: log ips of the selected candidate pair here
             iceReadyEvent.invoke(null);
         }
         else if (IceMediaStream.PROPERTY_PAIR_CONSENT_FRESHNESS_CHANGED.equals(event.getPropertyName())){

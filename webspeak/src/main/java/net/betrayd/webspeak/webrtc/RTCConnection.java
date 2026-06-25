@@ -63,8 +63,10 @@ public class RTCConnection {
     }
 
     public void receivedSessionDescription(RTCSignalingMessages.sessionDescription sessionDescription) {
+        LOGGER.debug("Received remote SDP type={}", sessionDescription.getSdpType());
         if(sessionDescription.getSdpType() != RTCSdpType.ANSWER){
             //Non answers are currently unhandled...
+            LOGGER.warn("Received SDP answer type which is currently unsupported");
             return;
         }
 
@@ -76,8 +78,8 @@ public class RTCConnection {
         } else if (sdp.contains("a=setup:passive")) {
             dtlsTransport.setSetupAttribute("passive");
         } else if (sdp.contains("a=setup:actpass")) {
-            // If the remote answers with actpass, we should default to acting as the client (active)
-            dtlsTransport.setSetupAttribute("passive");
+            LOGGER.warn("Remote SDP answer used setup:actpass; defaulting local DTLS role to active/client");
+            dtlsTransport.setSetupAttribute("active");
         } else{
             LOGGER.error("Received bad SDP type for a=setup: {}", sdp);
             return;
@@ -98,6 +100,8 @@ public class RTCConnection {
         }
         if (!remoteFingerprints.isEmpty()) {
             dtlsTransport.setRemoteFingerprints(remoteFingerprints);
+            LOGGER.info("Remote SDP fingerprints parsed: algorithms={}", remoteFingerprints.keySet());
+            LOGGER.debug("Remote SDP fingerprints={}", remoteFingerprints);
         } else {
             LOGGER.warn("No fingerprint found in remote SDP! DTLS will likely fail.");
         }
@@ -117,9 +121,17 @@ public class RTCConnection {
 
     //We don't use mid or MlineIndex because we only have the one channel / ice media stream
     public void receivedIceCandidate(RTCSignalingMessages.iceCandidate iceCandidate) {
-         IceCandidateParser.ParsedCandidateSDP data = null;
+        IceCandidateParser.ParsedCandidateSDP data = null;
         try {
             data = IceCandidateParser.parse(iceCandidate.sdp());
+            LOGGER.debug(
+                    "Parsed remote ICE candidate: foundation={}, type={}, ip={}, port={}, priority={}",
+                    data.foundation(),
+                    data.type(),
+                    data.ip(),
+                    data.port(),
+                    data.priority()
+            );
         }
         catch (IllegalArgumentException e) {
             LOGGER.warn("failed to parse ice candidate: {}.\nsdp: {}", e, iceCandidate.sdp());
@@ -190,6 +202,7 @@ public class RTCConnection {
     private void onIceReady(){
         LOGGER.info("ICE connected");
 
+        //TODO: add a test to not call multiple times if ice hits ready state repeatedly
         TaskPools.IO_POOL.execute(dtlsTransport::startDtlsHandshake);
     }
 

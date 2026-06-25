@@ -32,6 +32,7 @@ public class TlsServerImpl extends DefaultTlsServer {
         super(DtlsUtils.BC_TLS_CRYPTO);
         this.certificateInfo = certificateInfo;
         this.verifyRemoteCertificate = verifyRemoteCertificate;
+        LOGGER.debug("DTLS server handshake beginning");
     }
 
     public int getChosenSrtpProtectionProfile() {

@@ -118,6 +118,7 @@ public class DtlsStack {
     }
 
     public void actAsServer(){
+        LOGGER.info("DTLS role selected: server/passive");
         DtlsServer dtlsServer = new DtlsServer(
                 datagramTransport,
                 certificateInfo,
@@ -136,6 +137,7 @@ public class DtlsStack {
     }
 
     public void actAsClient(){
+        LOGGER.debug("DTLS role selected: client/active");
         role = new DtlsClient(
                 datagramTransport,
                 certificateInfo,
@@ -156,11 +158,14 @@ public class DtlsStack {
      * has been set.
      */
     public void start() throws InterruptedException, IOException {
+        LOGGER.debug("Starting DTLS stack with role={}", role != null ? role.getClass().getSimpleName() : "null");
         roleIsSet.await();
 
         if(role != null){
             dtlsTransport = role.start();
         }
+
+        LOGGER.debug("DTLS transport established");
 
         // There is a bit of a race here: It's technically possible the
         // far side could finish the handshake and send a message before
@@ -213,7 +218,7 @@ public class DtlsStack {
                 }
             }
             if(bufferCopy != null){
-                incomingProtocolDataRecievedEvent.invoke(new Buffer(bufferCopy, bytesReceived, bytesReceived));
+                incomingProtocolDataRecievedEvent.invoke(new Buffer(bufferCopy, 0, bytesReceived));
             }
         } while(bytesReceived > 0);
     }
@@ -245,6 +250,7 @@ public class DtlsStack {
     private void verifyAndValidateRemoteCandidates(Certificate remoteCertificate) throws IOException, OperatorCreationException, DtlsException {
         if(remoteCertificate != null){
             DtlsUtils.verifyAndValidateCertificate(remoteCertificate, remoteFingerprints);
+            LOGGER.debug("Remote DTLS certificate verified successfully");
             return;
         }
 
