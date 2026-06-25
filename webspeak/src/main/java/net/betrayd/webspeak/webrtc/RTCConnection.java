@@ -78,8 +78,12 @@ public class RTCConnection {
         } else if (sdp.contains("a=setup:actpass")) {
             // If the remote answers with actpass, we should default to acting as the client (active)
             dtlsTransport.setSetupAttribute("passive");
+        } else{
+            LOGGER.error("Received bad SDP type for a=setup: {}", sdp);
+            return;
         }
 
+        //TODO: clean this up to also use a string reader
         Map<String, java.util.List<String>> remoteFingerprints = new java.util.HashMap<>();
         for (String line : sdp.split("\r?\n")) {
             if (line.startsWith("a=fingerprint:")) {
@@ -92,7 +96,6 @@ public class RTCConnection {
                 }
             }
         }
-
         if (!remoteFingerprints.isEmpty()) {
             dtlsTransport.setRemoteFingerprints(remoteFingerprints);
         } else {

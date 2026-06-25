@@ -206,8 +206,10 @@ public class DtlsStack {
 
                     }
                     //in jitsi this is done in the BufferPool. Moving on.
-                    bufferCopy = new byte[bytesReceived];
-                    System.arraycopy(dtlsAppDataBuf, 0, bufferCopy, 0, bytesReceived);
+                    if (bytesReceived > 0) {
+                        bufferCopy = new byte[bytesReceived];
+                        System.arraycopy(dtlsAppDataBuf, 0, bufferCopy, 0, bytesReceived);
+                    }
                 }
             }
             if(bufferCopy != null){
@@ -243,6 +245,7 @@ public class DtlsStack {
     private void verifyAndValidateRemoteCandidates(Certificate remoteCertificate) throws IOException, OperatorCreationException, DtlsException {
         if(remoteCertificate != null){
             DtlsUtils.verifyAndValidateCertificate(remoteCertificate, remoteFingerprints);
+            return;
         }
 
         throw new DtlsException("Remote certificate was null");
