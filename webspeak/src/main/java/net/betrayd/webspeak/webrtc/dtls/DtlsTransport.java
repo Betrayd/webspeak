@@ -47,7 +47,7 @@ public class DtlsTransport {
 
     private boolean dtlsHandshakeComplete = false;
 
-    public DtlsTransport() {
+    public DtlsTransport() throws CertificateGenerationException {
         //TODO: this should be in a try catch as it can fail
         dtlsStack = new DtlsStack();
         dtlsStack.onHandshakeComplete().addListener((data) -> {

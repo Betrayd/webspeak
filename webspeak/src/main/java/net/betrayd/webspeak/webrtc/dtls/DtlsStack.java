@@ -20,11 +20,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 public class DtlsStack {
+    public static final Logger LOGGER = LoggerFactory.getLogger(DtlsStack.class);
     static {
         //this makes it so we only block the main thread when first starting (so we are guaranteed a return value)
-        getGlobalCertificateInfo();
+        try {
+            getGlobalCertificateInfo();
+        }
+        catch (Exception e) {
+            LOGGER.warn("Could not properly generate certificate info on start", e);
+        }
     }
-    public static final Logger LOGGER = LoggerFactory.getLogger(DtlsStack.class);
 
     public static final int QUEUE_SIZE = 50;
 
@@ -37,7 +42,7 @@ public class DtlsStack {
      * one to be used everywhere which expires in 24 hours (when we'll generate
      * another one).
      */
-    public static CertificateInfo getGlobalCertificateInfo() throws RuntimeException {
+    public static CertificateInfo getGlobalCertificateInfo() throws CertificateGenerationException {
         if(globalCertificateInfo == null) {
             generateSetGlobalWithTryCatch();
             return globalCertificateInfo;
@@ -60,11 +65,11 @@ public class DtlsStack {
         return globalCertificateInfo;
     }
 
-    private static void generateSetGlobalWithTryCatch() throws RuntimeException {
+    private static void generateSetGlobalWithTryCatch() throws CertificateGenerationException {
         try{
             globalCertificateInfo = DtlsUtils.generateCertificateInfo();
         }catch (Exception e){
-            throw new RuntimeException("Could not generate certificate info", e);
+            throw new CertificateGenerationException("Could not generate certificate info", e);
         }
     }
 
@@ -86,7 +91,7 @@ public class DtlsStack {
 
     private Map<String, List<String>> remoteFingerprints = Map.of();
 
-    public DtlsStack() throws RuntimeException {
+    public DtlsStack() throws CertificateGenerationException {
         certificateInfo = getGlobalCertificateInfo();
         datagramTransport = new DatagramTransportImpl(incomingProtocolData);
     }

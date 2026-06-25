@@ -63,7 +63,15 @@ public class RTCManager {
             LOGGER.error("Failed to initialize ICE transport", e);
             return;
         }
-        DtlsTransport dtlsTransport = new DtlsTransport();
+        DtlsTransport dtlsTransport;
+        try {
+            dtlsTransport = new DtlsTransport();
+        }
+        catch(Exception e){
+            //TODO: Error
+            LOGGER.error("Failed to initialize DTLS transport", e);
+            return;
+        }
 
         RTCConnection rtcConnection = new RTCConnection(iceTransport, dtlsTransport);
         BackendSignaling webSocketSignaling = new BackendSignaling(sessionID, serverBackend);
