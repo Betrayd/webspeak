@@ -217,6 +217,9 @@ public class RTCConnection {
 
                 dtlsTransport.enqueueBuffer(clonedBuffer);
             }
+            else if (RawPacketUtils.isRtpRtcp(buffer)) {
+                LOGGER.error("RECEIVED RTP NOT IMPLEMENTED YET");
+            }
         }
 
 

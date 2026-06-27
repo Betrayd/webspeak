@@ -8,24 +8,13 @@ import net.betrayd.webspeak.webrtc.ice.IceTransport;
 import net.betrayd.webspeak.webrtc.ice.LocalCandidate;
 import net.betrayd.webspeak.webrtc.signaling.BackendSignaling;
 import net.betrayd.webspeak.webrtc.signaling.SignalingServer;
-import org.bouncycastle.asn1.x500.X500Name;
-import org.bouncycastle.cert.X509CertificateHolder;
-import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
-import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.operator.ContentSigner;
-import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.security.*;
-import java.security.cert.X509Certificate;
 import java.util.Collection;
-import java.util.Date;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledExecutorService;
 
 public class RTCManager {
     public static final Logger LOGGER = LoggerFactory.getLogger(RTCManager.class);
@@ -48,7 +37,7 @@ public class RTCManager {
         WebSpeakPlayer player = server.getPlayers().get(sessionID);
 
         if(player == null) {
-            //TODO: Error
+            //TODO: Error recovery
             LOGGER.warn("Player not found for sessionID {}", sessionID);
             return;
         }
@@ -59,7 +48,7 @@ public class RTCManager {
             iceTransport.init();
         }
         catch(IOException e){
-            //TODO: Error
+            //TODO: Error recovery
             LOGGER.error("Failed to initialize ICE transport", e);
             return;
         }
@@ -68,7 +57,7 @@ public class RTCManager {
             dtlsTransport = new DtlsTransport();
         }
         catch(Exception e){
-            //TODO: Error
+            //TODO: Error recovery
             LOGGER.error("Failed to initialize DTLS transport", e);
             return;
         }
