@@ -1,0 +1,166 @@
+package net.betrayd.webspeak.webrtc.datachannel;
+
+import net.betrayd.webspeak.webrtc.datachannel.protocol.DataChannelMessage;
+import net.betrayd.webspeak.webrtc.datachannel.protocol.DataChannelProtocolMessageParser;
+import net.betrayd.webspeak.webrtc.datachannel.protocol.OpenChannelMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.nio.ByteBuffer;
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * We need the stack to look at all incoming messages so that it can listen for an 'open channel'
+ * message from the remote side
+ *
+ * Handles DataChannel negotiation and the routing of all Data Channel messages
+ * to specific {@link DataChannel} instances.
+ *
+ * @author Brian Baldino
+ */
+//TODO: revisit thread safety in here
+//TODO: add an arbitrary ID
+public class DataChannelStack
+{
+    public static final Logger LOGGER = LoggerFactory.getLogger(DataChannelStack.class);
+    public static final int MAX_CHANNELS = 1024;
+
+    private final Map<Integer, DataChannel> dataChannels = new HashMap<>();
+    private final DataChannelDataSender dataChannelDataSender;
+    private DataChannelStackEventListener listener;
+
+    /**
+     * Initializes a new {@link DataChannelStack} with a specific sender.
+     * @param dataChannelDataSender the sender.
+     */
+    public DataChannelStack(DataChannelDataSender dataChannelDataSender)
+    {
+        this.dataChannelDataSender = dataChannelDataSender;
+    }
+
+    /**
+     * Handles a received packet.
+     */
+    public void onIncomingDataChannelPacket(ByteBuffer data, int sid, int ppid)
+    {
+        LOGGER.debug("Data channel stack received SCTP message");
+        DataChannelMessage message = DataChannelProtocolMessageParser.parse(data.array(), ppid);
+        if (message instanceof OpenChannelMessage)
+        {
+            LOGGER.debug("Received data channel open message");
+            if (dataChannels.size() >= MAX_CHANNELS)
+            {
+                LOGGER.warn("Data channel limit exceeded.");
+                return;
+            }
+
+            OpenChannelMessage openChannelMessage = (OpenChannelMessage)message;
+            // Remote side wants to open a channel
+            DataChannel dataChannel = new RemotelyOpenedDataChannel(
+                    dataChannelDataSender,
+                    openChannelMessage.channelType,
+                    openChannelMessage.priority,
+                    openChannelMessage.reliability,
+                    sid,
+                    openChannelMessage.label);
+            dataChannels.put(sid, dataChannel);
+            listener.onDataChannelOpenedRemotely(dataChannel);
+        }
+        else
+        {
+            DataChannel dataChannel= dataChannels.get(sid);
+            if (dataChannel == null)
+            {
+                LOGGER.error("Could not find data channel for sid {}", sid);
+                return;
+            }
+            dataChannel.onIncomingMsg(message);
+        }
+    }
+
+    public void onDataChannelStackEvents(DataChannelStackEventListener listener)
+    {
+        this.listener = listener;
+    }
+
+    /**
+     * Opens new WebRTC data channel using specified parameters.
+     * @param channelType channel type as defined in control protocol description.
+     *             Use 0 for "reliable".
+     * @param priority channel priority. The higher the number, the lower
+     *             the priority.
+     * @param reliability Reliability Parameter<br/>
+     *
+     * This field is ignored if a reliable channel is used.
+     * If a partial reliable channel with limited number of
+     * retransmissions is used, this field specifies the number of
+     * retransmissions.  If a partial reliable channel with limited
+     * lifetime is used, this field specifies the maximum lifetime in
+     * milliseconds.  The following table summarizes this:<br/></br>
+
+    +------------------------------------------------+------------------+
+    | Channel Type                                   |   Reliability    |
+    |                                                |    Parameter     |
+    +------------------------------------------------+------------------+
+    | DATA_CHANNEL_RELIABLE                          |     Ignored      |
+    | DATA_CHANNEL_RELIABLE_UNORDERED                |     Ignored      |
+    | DATA_CHANNEL_PARTIAL_RELIABLE_REXMIT           |  Number of RTX   |
+    | DATA_CHANNEL_PARTIAL_RELIABLE_REXMIT_UNORDERED |  Number of RTX   |
+    | DATA_CHANNEL_PARTIAL_RELIABLE_TIMED            |  Lifetime in ms  |
+    | DATA_CHANNEL_PARTIAL_RELIABLE_TIMED_UNORDERED  |  Lifetime in ms  |
+    +------------------------------------------------+------------------+
+     * @param sid SCTP stream id that will be used by new channel
+     *            (it must not be already used).
+     * @param label text label for the channel.
+     * @return new instance of <tt>WebRtcDataStream</tt> that represents opened
+     *         WebRTC data channel.
+     */
+    public DataChannel createDataChannel(int channelType, int priority, long reliability, int sid, String label)
+    {
+        synchronized (dataChannels)
+        {
+            DataChannel dataChannel = new DataChannel(
+                    dataChannelDataSender, channelType, priority, reliability, sid, label);
+            dataChannels.put(sid, dataChannel);
+            return dataChannel;
+        }
+    }
+
+    /**
+     * TODO: these 2 feel a bit awkward since they are so similar, but we use
+     * a different one for a remote channel (fired by the stack) and a
+     * locally-created channel (fired by the data channel itself).
+     */
+    public interface DataChannelStackEventListener
+    {
+        /**
+         * The data channel was opened by the remote side.
+         */
+        void onDataChannelOpenedRemotely(DataChannel dataChannel);
+    }
+
+    public interface DataChannelEventListener
+    {
+        /**
+         * The data channel was opened.
+         */
+        void onDataChannelOpened();
+    }
+
+    public interface DataChannelMessageListener
+    {
+        /**
+         * A message received.
+         */
+        void onDataChannelMessage(DataChannelMessage dataChannelMessage);
+    }
+
+    public interface DataChannelDataSender
+    {
+        /**
+         * Sends a message.
+         */
+        int send(ByteBuffer data, int sid, int ppid);
+    }
+}

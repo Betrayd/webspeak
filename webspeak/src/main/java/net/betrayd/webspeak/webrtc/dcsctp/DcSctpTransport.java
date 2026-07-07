@@ -19,7 +19,7 @@ public class DcSctpTransport {
         options.setMaxInitRetransmits(null);
         return options;
     }
-    public static SendOptions getSendOptions(){
+    public static SendOptions getDefaultSendOptions(){
         if (sendOptions != null){
             return sendOptions;
         }
@@ -50,7 +50,7 @@ public class DcSctpTransport {
     public void handleIncomingSctp(Buffer buffer) {
         synchronized (lock) {
             if (socket != null) {
-                socket.receivePacket(buffer.data(), buffer.offset(), buffer.length());
+                socket.receivePacket(buffer.getData(), buffer.getOffset(), buffer.getLength());
             }
         }
     }

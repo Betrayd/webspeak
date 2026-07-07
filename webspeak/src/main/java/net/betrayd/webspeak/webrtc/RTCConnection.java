@@ -1,5 +1,8 @@
 package net.betrayd.webspeak.webrtc;
 
+import net.betrayd.webspeak.webrtc.datachannel.DataChannelStack;
+import net.betrayd.webspeak.webrtc.datachannel.protocol.DataChannelPacket;
+import net.betrayd.webspeak.webrtc.dcsctp.DcSctpTransport;
 import net.betrayd.webspeak.webrtc.dtls.DtlsServer;
 import net.betrayd.webspeak.webrtc.dtls.DtlsTransport;
 import net.betrayd.webspeak.webrtc.ice.IceCandidateParser;
@@ -10,12 +13,19 @@ import net.betrayd.webspeak.webrtc.signaling.RTCSignalingMessages;
 import net.betrayd.webspeak.webrtc.signaling.SignalingServer;
 import net.betrayd.webspeak.webrtc.tracks.DataChannelTrack;
 import net.betrayd.webspeak.webrtc.tracks.RTCTrack;
+import net.betrayd.webspeak.webrtc.transform.PacketInfoQueue;
+import net.betrayd.webspeak.webrtc.transform.node.nodes.Node;
+import net.betrayd.webspeak.webrtc.transform.pipeline.PipelineBuilder;
 import net.betrayd.webspeak.webrtc.utils.RawPacketUtils;
 import net.betrayd.webspeak.webrtc.utils.TaskPools;
+import org.jetbrains.annotations.Nullable;
+import org.jitsi.dcsctp4j.DcSctpMessage;
+import org.jitsi.dcsctp4j.SendStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.security.SecureRandom;
 import java.util.Collection;
 import java.util.Map;
@@ -26,6 +36,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class RTCConnection {
     public static final Logger LOGGER = LoggerFactory.getLogger(RTCConnection.class);
+    public static final int QUEUE_SIZE = 1024;
 
     private final IceTransport iceTransport;
     private final DtlsTransport dtlsTransport;
@@ -36,6 +47,40 @@ public class RTCConnection {
     int sdpVersion = 1;
 
     private final long sdpSessionId = new SecureRandom().nextLong() & 0x7FFFFFFFFFL;
+
+    public void DcSctpHandler() =
+    /** The [DcSctpTransport] instance we'll use to manage the SCTP connection */
+    @Nullable
+    private DcSctpTransport sctpTransport = null;
+    private final DataChannelStack dataChannelStack = new DataChannelStack((data, sid, ppid) -> {
+        DcSctpMessage message = new DcSctpMessage((short) sid, ppid, data.array());
+
+        if(sctpTransport != null){
+            SendStatus stauts = sctpTransport.send(message, DcSctpTransport.getDefaultSendOptions());
+
+            if(stauts == SendStatus.kSuccess){
+                return 0;
+            }else{
+                LOGGER.error("Error sending to SCTP: {}", stauts);
+            }
+        }
+        return -1;
+    });
+
+    private final PacketInfoQueue incomingDataChannelMessageQueue = new PacketInfoQueue(TaskPools.IO_POOL, packetInfo -> {
+        //logic guarentees that type safety. If not something in the logic was horribly wrong and so we want to runtime error and crash anyway
+        DataChannelPacket dataChannelPacket = (DataChannelPacket) packetInfo.getPacket();
+
+        dataChannelStack.onIncomingDataChannelPacket(ByteBuffer.wrap(dataChannelPacket.getData()), dataChannelPacket.getSid(), dataChannelPacket.getPpid());
+
+        return true;
+    }, QUEUE_SIZE);
+
+    public Node sctpPipeline = PipelineBuilder.pipeline(builder -> {
+        if (sctpHandler != null) {
+            builder.node(sctpHandler);
+        }
+    });
 
     public RTCConnection(IceTransport iceTransport, DtlsTransport dtlsTransport) {
         this.iceTransport = iceTransport;
@@ -51,7 +96,7 @@ public class RTCConnection {
 
         dtlsTransport.setOutgoingDataHandler(buffer -> {
             try {
-                iceTransport.send(buffer.data(), buffer.offset(), buffer.length());
+                iceTransport.send(buffer.getData(), buffer.getOffset(), buffer.getLength());
             } catch (IOException e) {
                 LOGGER.warn("Error sending DTLS data through ICE", e);
             }
@@ -196,7 +241,8 @@ public class RTCConnection {
     }
 
     private void dtlsAppPacketReceived(Buffer buffer){
-        LOGGER.warn("dtlsAppPacketReceived!!!! length: {}", buffer.length());
+        sctpPipeLine()
+        dataChannelPacket = new DataChannelPacket(message);
     }
 
     private void onIceReady(){
@@ -207,13 +253,13 @@ public class RTCConnection {
     }
 
     private void handleRawPacket(Buffer buffer){
-        if (buffer.length() > 0) {
-            int firstByte = buffer.data()[buffer.offset()] & 0xFF;
+        if (buffer.getLength() > 0) {
+            int firstByte = buffer.getData()[buffer.getOffset()] & 0xFF;
 
             if(RawPacketUtils.isDTLSPacket(buffer)){
-                byte[] copiedData = new byte[buffer.length()];
-                System.arraycopy(buffer.data(), buffer.offset(), copiedData, 0, buffer.length());
-                Buffer clonedBuffer = new Buffer(copiedData, 0, buffer.length());
+                byte[] copiedData = new byte[buffer.getLength()];
+                System.arraycopy(buffer.getData(), buffer.getOffset(), copiedData, 0, buffer.getLength());
+                Buffer clonedBuffer = new Buffer(copiedData, 0, buffer.getLength());
 
                 dtlsTransport.enqueueBuffer(clonedBuffer);
             }

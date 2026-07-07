@@ -55,7 +55,11 @@ public class DtlsStack {
             if(!refreshInProgress.get()){
                 Thread thread = new Thread(() -> {
                     refreshInProgress.set(true);
-                    generateSetGlobalWithTryCatch();
+                    try {
+                        generateSetGlobalWithTryCatch();
+                    } catch (CertificateGenerationException e) {
+                        LOGGER.warn("Could not refresh certificate info", e);
+                    }
                     refreshInProgress.set(false);
                 });
 

@@ -62,7 +62,7 @@ public class SctpDataChannelParser implements DcSctpSocketCallbacks {
 
     @Override
     public @NotNull Instant Now() {
-        return null;
+        return ;
     }
 
     @Override

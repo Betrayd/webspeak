@@ -143,7 +143,7 @@ public class DtlsTransport {
     }
 
     public void enqueueBuffer(net.betrayd.webspeak.webrtc.Buffer buffer) {
-        dtlsQueue.add(new Buffer(buffer.data(), buffer.offset(), buffer.length()));
+        dtlsQueue.add(new Buffer(buffer.getData(), buffer.getOffset(), buffer.getLength()));
     }
 
     /**
