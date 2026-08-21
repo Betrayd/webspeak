@@ -9,8 +9,8 @@ public class RelayMessages {
         String getType();
     }
 
-    public record S2RGetSessionId(int requestId) implements RelayMessage {
-        public static final String TYPE = "getSessionId";
+    public record S2RAddSessionId(int requestId, String id) implements RelayMessage {
+        public static final String TYPE = "addSessionId";
 
         @Override
         public String getType() {
@@ -36,7 +36,7 @@ public class RelayMessages {
         }
     }
 
-    public record R2SReturnSessionId(int requestId, String id) implements RelayMessage {
+    public record R2SReturnSessionId(int requestId, boolean isValid) implements RelayMessage {
         public static final String TYPE = "returnSessionId";
 
         @Override

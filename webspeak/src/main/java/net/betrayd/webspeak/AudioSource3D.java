@@ -1,16 +1,22 @@
 package net.betrayd.webspeak;
 
-import dev.onvoid.webrtc.media.MediaStreamTrack;
 import net.betrayd.webspeak.math.Vec3d;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.concurrent.BlockingQueue;
 
 /**
  * An audio source that can be positioned in 3D space.
  */
 public interface AudioSource3D {
 
-    //IDK what the heck I'm doing so I guess hacky workaround for now. 
-    //TODO: actual implementation
-    MediaStreamTrack getAudioTrack();
+    /**
+     *
+     * @return A blocking queue which should be accessed from a new thread or null
+     * <p>contains the encoded audio data that can be directly forwarded to listening clients</p>
+     */
+    @Nullable
+    BlockingQueue<Byte> getAudioStream();
 
     /**
      * Get the global position of this audio source.

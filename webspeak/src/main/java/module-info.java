@@ -4,7 +4,8 @@ module net.betrayd.webspeak {
     requires org.eclipse.jetty.websocket.client;
     requires com.google.gson;
     requires com.google.common;
-    requires webrtc.java;
+    requires vibe.sfu;
+    requires jitsi.utils;
 
     //TODO: restrict this, (needs to be there to start because of reflective access)
     exports net.betrayd.webspeak.impl.relay;

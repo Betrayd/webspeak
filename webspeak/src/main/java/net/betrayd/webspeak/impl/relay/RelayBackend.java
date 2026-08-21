@@ -6,7 +6,6 @@ import lombok.Getter;
 import net.betrayd.webspeak.ServerBackend;
 import net.betrayd.webspeak.WebSpeakRelay;
 import net.betrayd.webspeak.event.Event;
-import org.eclipse.jetty.util.NanoTime;
 import org.eclipse.jetty.websocket.api.Callback;
 import org.eclipse.jetty.websocket.api.Session;
 import org.jetbrains.annotations.Nullable;
@@ -37,7 +36,7 @@ public class RelayBackend implements ServerBackend, Session.Listener.AutoDemandi
     private final Event.Invokable<Throwable> onError = Event.create();
     private final Event.Invokable<String> onClose = Event.create();
 
-    private final Map<Integer, CompletableFuture<String>> sessionRequests = new ConcurrentHashMap<>();
+    private final Map<Integer, CompletableFuture<Boolean>> sessionRequests = new ConcurrentHashMap<>();
     private final AtomicInteger nextIdRequest = new AtomicInteger();
 
     public RelayBackend(WebSpeakRelay.Config config) {
@@ -56,7 +55,7 @@ public class RelayBackend implements ServerBackend, Session.Listener.AutoDemandi
     }
 
     //TODO: add to the relay config
-    private int keepAliveMillis = 1000;
+    private final int keepAliveMillis = 1000;
     private long keepAlive = System.currentTimeMillis();
     @Override
     public void tick(){
@@ -93,17 +92,17 @@ public class RelayBackend implements ServerBackend, Session.Listener.AutoDemandi
     }
 
     @Override
-    public CompletableFuture<String> requestSessionId() {
+    public CompletableFuture<Boolean> addSessionId(String sessionId) {
         if (relaySession == null)
             throw getNoSession();
 
         int request = nextIdRequest.getAndIncrement();
 
-        CompletableFuture<String> future = new CompletableFuture<String>()
+        CompletableFuture<Boolean> future = new CompletableFuture<Boolean>()
                 .orTimeout(config.getTimeout(), TimeUnit.MILLISECONDS);
         sessionRequests.put(request, future);
 
-        String msg = RelayMessages.write(new RelayMessages.S2RGetSessionId(request));
+        String msg = RelayMessages.write(new RelayMessages.S2RAddSessionId(request, sessionId));
 
         relaySession.sendText(";" + msg, new Callback() {
             @Override
@@ -231,12 +230,12 @@ public class RelayBackend implements ServerBackend, Session.Listener.AutoDemandi
     }
 
     private void handleReturnSessionId(RelayMessages.R2SReturnSessionId msg) {
-        CompletableFuture<String> future = sessionRequests.get(msg.requestId());
+        CompletableFuture<Boolean> future = sessionRequests.get(msg.requestId());
         if (future == null) {
-            LOGGER.warn("Received un-requested session ID: {} (request ID {})", msg.id(), msg.requestId());
+            LOGGER.warn("Received un-requested session ID: {} (request ID {})", msg.isValid(), msg.requestId());
             return;
         }
-        future.complete(msg.id());
+        future.complete(msg.isValid());
     }
 
     @Override

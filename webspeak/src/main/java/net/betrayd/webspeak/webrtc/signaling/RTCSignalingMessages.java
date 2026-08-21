@@ -2,42 +2,36 @@ package net.betrayd.webspeak.webrtc.signaling;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import dev.onvoid.webrtc.RTCSdpType;
-import org.jetbrains.annotations.Nullable;
 
+//note for future, removed identifier which was used to determine which of the multiple RTC connections we are communicating about, but since we now always only eve have one rtc connection
 public class RTCSignalingMessages {
     private RTCSignalingMessages() {};
     public interface RTCSignalingMessage {
-        String getRTCIdentifier();
         String getType();
     }
-    public record iceCandidate(String sdpMid, int sdpMLineIndex, String sdp, String identifier) implements RTCSignalingMessage{
+    public record iceCandidate(String sdpMid, int sdpMLineIndex, String sdp) implements RTCSignalingMessage{
         public static final String TYPE = "RTCiceCandidate";
 
-        @Override
-        public String getRTCIdentifier() { return identifier; }
         @Override
         public String getType() { return TYPE; }
     }
 
-    public record sessionDescription(int RTCSdpType, String sdp, String identifier) implements  RTCSignalingMessage{
+    public record sessionDescription(int RTCSdpType, String sdp) implements  RTCSignalingMessage{
         public static final String TYPE = "RTCsessionDescription";
 
-        /**
+        /*
          * gets the RTCSdpType of this sessionDescription packet
          * @return the RTCSdpType of this packet, or null if we failed to parse
          */
-        @Nullable
+        /*@Nullable
         public RTCSdpType getSdpType(){
             RTCSdpType value = null;
             if(dev.onvoid.webrtc.RTCSdpType.values().length < RTCSdpType){
                 return null;
             }
             return dev.onvoid.webrtc.RTCSdpType.values()[RTCSdpType];
-        }
+        }*/
 
-        @Override
-        public String getRTCIdentifier() { return identifier; }
         @Override
         public String getType() {
             return TYPE;

@@ -40,12 +40,12 @@ public interface ServerBackend {
     CompletableFuture<?> disconnectClient(String sessionId, int statusCode, String reason);
 
     /**
-     * Request a unique session ID from the relay.
+     * Attempts to add a unique session ID to the relay.
      * This session ID can be forwarded to players, and browsers who attempt to connect with this session ID will be sent to this server.
      *
-     * @return A future that completes once the relay responds with a session ID.
+     * @return A future that completes once the relay responds. The boolean is true if the session id was added successfully and false if a collision occurred.
      */
-    CompletableFuture<String> requestSessionId();
+    CompletableFuture<Boolean> addSessionId(String sessionId);
 
     /**
      * ticks the backend, in order to do events like send keep alives, etc.
@@ -79,7 +79,7 @@ public interface ServerBackend {
     CompletableFuture<?> sendMessage(String sessionId, String message);
 
     /**
-     * Called when an internal error has occurred, causing the session to close.
+     * Called when a non-recoverable internal error has occurred, causing the session to close.
      */
     Event<Throwable> getOnError();
 

@@ -3,8 +3,6 @@ package net.betrayd.webspeak;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Maps;
-import dev.onvoid.webrtc.RTCConfiguration;
-import dev.onvoid.webrtc.RTCIceServer;
 import lombok.Getter;
 import lombok.NonNull;
 import net.betrayd.webspeak.event.Event;
@@ -12,6 +10,7 @@ import net.betrayd.webspeak.webrtc.RTCManagerCore;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
@@ -76,13 +75,14 @@ public class WebSpeakServer implements Executor {
         this.serverBackend = serverBackend;
 
         //TODO: add configuration somewhere else
-        RTCConfiguration config = new RTCConfiguration();
+        /*RTCConfiguration config = new RTCConfiguration();
         RTCIceServer iceServer = new RTCIceServer();
         iceServer.urls.add("stun:stun.l.google.com:19302");
         config.iceServers.add(iceServer);
         //Create the RTC manager
-        this.rtcManager = new RTCManagerCore(config, serverBackend, this);
+        this.rtcManager = new RTCManagerCore(config, serverBackend, this);*/
 
+        //TODO: instead of stopping, we should try to restart the backend
         serverBackend.getOnClose().addListener(this::onStop);
     }
 
@@ -201,8 +201,9 @@ public class WebSpeakServer implements Executor {
         return false;
     }
 
+    //TODO: Maybe add a max retries so we don't crash?
     /**
-     * Request a session ID from the relay and use it to add a player to the server.
+     * Add a session ID to the relay and use it to add a player to the server.
      * @param player Player to add.
      * @return A future that completes with the session ID once the player is added.
      */
@@ -210,12 +211,17 @@ public class WebSpeakServer implements Executor {
         if (player.getServer() != this) {
             throw new IllegalArgumentException("Player belongs to the wrong server!");
         }
-        return serverBackend.requestSessionId().thenApply(id -> {
-            if (!addPlayer(player, id)) {
-                throw new RuntimeException("By the time webspeak the backend returned with a session ID, " +
-                        "a player had been added with that session ID. So basically a programmer fucked up.");
+        String sessionId = getNextSessionId();
+        return serverBackend.addSessionId(sessionId).thenCompose(isValid -> {
+            if(isValid) {
+                if (!addPlayer(player, sessionId)) {
+                    throw new RuntimeException("By the time webspeak the backend returned with a session ID, " +
+                            "a player had been added with that session ID. So basically a programmer fucked up.");
+                }
+                return CompletableFuture.completedFuture(sessionId);
+            }else{
+                return addPlayer(player);
             }
-            return id;
         });
     }
 
@@ -301,5 +307,9 @@ public class WebSpeakServer implements Executor {
         // TODO: close logic
         onStop.invoke(this);
         shutdownFuture.complete(null);
+    }
+
+    protected String getNextSessionId(){
+        return UUID.randomUUID().toString();
     }
 }

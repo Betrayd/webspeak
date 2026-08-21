@@ -14,8 +14,9 @@ public abstract class RTCConnection {
     private static final Logger LOGGER = LoggerFactory.getLogger(RTCConnection.class);
     //Yes this starts on 1, that's on purpose so that if we get 0 it's an error
     //this exposes the number of data channels the server has made to the client, but I really don't think that's a big issue
-    public static String getNextIdentifier(){
-        return UUID.randomUUID().toString();
+    private byte nextvalue = 0;
+    public byte getNextIdentifier(){
+        return nextvalue++;
     }
 
     private final RTCPeerConnection peerConnection;

@@ -1,11 +1,12 @@
 package net.betrayd.webspeak;
 
-import dev.onvoid.webrtc.media.MediaStreamTrack;
 import lombok.Getter;
 import lombok.Setter;
-import net.betrayd.webspeak.webrtc.PlayerRTCDataChannels;
-import net.betrayd.webspeak.webrtc.signaling.BackendSignaling;
+import net.betrayd.webspeak.webrtc.PlayerConnection;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 
 /**
  * A player that contains a connection, can obtain coordinates, etc.
@@ -21,13 +22,9 @@ public abstract class WebSpeakPlayer implements AudioSource3D {
     @Nullable
     @Getter
     @Setter
-    private BackendSignaling signaling = null;
+    private PlayerConnection rtcConnection = null;
 
-    @Nullable
-    @Getter
-    @Setter
-    private PlayerRTCDataChannels rtcConnection = null;
-
+    private final BlockingQueue<Byte> queue = new ArrayBlockingQueue<>(1000);
    /* @Nullable
     @Getter
     @Setter
@@ -63,10 +60,10 @@ public abstract class WebSpeakPlayer implements AudioSource3D {
     }
 
     @Override
-    public MediaStreamTrack getAudioTrack(){
-        //if(rtcConnection != null){
-        //    return rtcConnection.micTrack;
-        //}
+    public BlockingQueue<Byte> getAudioStream(){
+        if(rtcConnection != null){
+            return queue;
+        }
         return null;
     }
 }
